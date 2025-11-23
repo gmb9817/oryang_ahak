@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}단어 산성비 - 오량어학사전{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-6 px-4 select-none grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <div class="lg:col-span-2">
+        <div class="flex justify-between items-center mb-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+            <div class="flex items-center gap-4">
+                <div class="text-gray-500 font-bold">SCORE</div>
+                <div id="score-display" class="text-3xl font-black text-green-600">0</div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-red-500 text-2xl">❤️</span>
+                <span id="life-display" class="text-xl font-bold text-gray-700">5</span>
+            </div>
+        </div>
+
+        <div id="game-screen" class="relative w-full h-[500px] bg-gradient-to-b from-slate-800 to-slate-900 rounded-xl shadow-inner overflow-hidden border-4 border-slate-700">
+            
+            <div id="start-overlay" class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/70 text-white">
+                <h1 class="text-4xl font-bold mb-2 text-green-400">☔ 단어 산성비</h1>
+                <p class="text-gray-300 mb-8">단어가 땅에 닿기 전에 타이핑하세요!</p>
+                <button onclick="startGame()" class="bg-green-600 hover:bg-green-500 text-white px-8 py-3 rounded-full font-bold text-xl transition-transform transform hover:scale-105 shadow-lg">
+                    게임 시작
+                </button>
+            </div>
+
+            <div id="gameover-overlay" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center bg-red-900/90 text-white backdrop-blur-sm p-6 text-center">
+                <div class="text-6xl mb-4">💥</div>
+                <h2 class="text-3xl font-bold mb-2">GAME OVER</h2>
+                <p class="text-xl mb-6">최종 점수: <span id="final-score" class="font-bold text-yellow-300">0</span></p>
+                
+                {% if user %}
+                    <p class="text-sm text-green-200 mb-6">랭킹에 점수가 등록되었습니다!</p>
+                {% else %}
+                    <p class="text-sm text-gray-300 mb-6">로그인하면 랭킹에 이름을 올릴 수 있어요.</p>
+                {% endif %}
+
+                <button onclick="location.reload()" class="bg-white text-red-800 px-8 py-3 rounded-full font-bold text-lg hover:bg-gray-100 transition">
+                    다시 도전하기
+                </button>
+            </div>
+
+            <div id="word-container" class="absolute inset-0 z-10"></div>
+
+            <div class="absolute bottom-0 w-full h-2 bg-green-500 shadow-[0_0_20px_rgba(34,197,94,0.6)]"></div>
+        </div>
+
+        <div class="mt-6 relative">
+            <input type="text" id="input-box" 
+                class="w-full bg-white border-2 border-green-200 text-gray-800 text-center text-2xl py-4 rounded-2xl focus:border-green-500 focus:ring-4 focus:ring-green-100 outline-none transition-all font-bold shadow-md disabled:bg-gray-100 disabled:text-gray-400"
+                placeholder="여기에 단어를 입력하세요" autocomplete="off" disabled>
+        </div>
+    </div>
+
+    <div class="lg:col-span-1">
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden h-full max-h-[650px]">
+            <div class="bg-green-600 p-4 text-white text-center">
+                <h3 class="text-xl font-bold">🏆 명예의 전당</h3>
+                <p class="text-xs text-green-100 opacity-80">TOP 10 RANKING</p>
+            </div>
+            
+            <div class="p-4 overflow-y-auto h-full" id="ranking-list">
+                {% if ranking %}
+                    <ul class="space-y-2">
+                        {% for rank in ranking %}
+                        <li class="flex items-center justify-between p-3 rounded-xl {% if loop.index == 1 %}bg-yellow-50 border border-yellow-200{% elif loop.index == 2 %}bg-gray-50 border border-gray-200{% elif loop.index == 3 %}bg-orange-50 border border-orange-200{% else %}bg-white border border-gray-100{% endif %}">
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold w-6 text-center {% if loop.index <= 3 %}text-xl{% else %}text-gray-400{% endif %}">
+                                    {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
+                                </span>
+                                <span class="font-medium text-gray-800 truncate max-w-[100px]">{{ rank.name }}</span>
+                            </div>
+                            <span class="font-bold text-green-600">{{ rank.score }}점</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="text-center py-10 text-gray-400">
+                        <p>아직 등록된 랭킹이 없습니다.</p>
+                        <p class="text-sm mt-2">첫 번째 주인공이 되어보세요!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const rawData = {{ all_words|tojson }};
+    const currentUser = {{ user|tojson }}; // 현재 로그인 유저 정보
+
+    let score = 0;
+    let lives = 5;
+    let isPlaying = false;
+    let spawnRate = 2000;
+    let fallSpeed = 1.5;
+    
+    let wordsOnScreen = [];
+    let gameLoopId, spawnLoopId;
+
+    const gameScreen = document.getElementById('game-screen');
+    const wordContainer = document.getElementById('word-container');
+    const inputBox = document.getElementById('input-box');
+    const scoreDisplay = document.getElementById('score-display');
+    const lifeDisplay = document.getElementById('life-display');
+
+    function startGame() {
+        document.getElementById('start-overlay').classList.add('hidden');
+        inputBox.disabled = false;
+        inputBox.focus();
+        isPlaying = true;
+        
+        score = 0;
+        lives = 5;
+        fallSpeed = 1.5;
+        spawnRate = 2000;
+        updateUI();
+
+        spawnWord();
+        spawnLoopId = setTimeout(spawnLoop, spawnRate);
+        gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    function spawnLoop() {
+        if (!isPlaying) return;
+        spawnWord();
+        let nextSpawn = Math.max(800, 2000 - (score * 50)); 
+        spawnLoopId = setTimeout(spawnLoop, nextSpawn);
+    }
+
+    function spawnWord() {
+        const data = rawData[Math.floor(Math.random() * rawData.length)];
+        const wordEl = document.createElement('div');
+        wordEl.innerText = data.word;
+        wordEl.className = "absolute text-white font-bold text-lg px-3 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/30 shadow-sm";
+        
+        const maxX = gameScreen.clientWidth - 100; 
+        wordEl.style.left = `${Math.random() * maxX}px`;
+        wordEl.style.top = "-40px";
+
+        wordContainer.appendChild(wordEl);
+        wordsOnScreen.push({ element: wordEl, text: data.word, y: -40 });
+    }
+
+    function gameLoop() {
+        if (!isPlaying) return;
+        const currentSpeed = fallSpeed + (Math.floor(score / 10) * 0.2);
+
+        for (let i = wordsOnScreen.length - 1; i >= 0; i--) {
+            let obj = wordsOnScreen[i];
+            obj.y += currentSpeed;
+            obj.element.style.top = `${obj.y}px`;
+
+            if (obj.y > gameScreen.clientHeight - 30) {
+                lives--;
+                updateUI();
+                gameScreen.classList.add('animate-pulse');
+                setTimeout(() => gameScreen.classList.remove('animate-pulse'), 200);
+
+                obj.element.remove();
+                wordsOnScreen.splice(i, 1);
+
+                if (lives <= 0) {
+                    gameOver();
+                    return;
+                }
+            }
+        }
+        gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    inputBox.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            const userText = inputBox.value.trim();
+            const targetIndex = wordsOnScreen.findIndex(obj => obj.text === userText);
+
+            if (targetIndex !== -1) {
+                const target = wordsOnScreen[targetIndex];
+                score += 1;
+                updateUI();
+                
+                // 펑 터지는 효과
+                target.element.classList.add('scale-150', 'opacity-0', 'text-green-400');
+                setTimeout(() => target.element.remove(), 200);
+                wordsOnScreen.splice(targetIndex, 1);
+            }
+            inputBox.value = "";
+        }
+    });
+
+    function updateUI() {
+        scoreDisplay.innerText = score;
+        lifeDisplay.innerText = lives;
+        if(lives <= 2) lifeDisplay.classList.replace('text-gray-700', 'text-red-600');
+    }
+
+    function gameOver() {
+        isPlaying = false;
+        cancelAnimationFrame(gameLoopId);
+        clearTimeout(spawnLoopId);
+        inputBox.disabled = true;
+        
+        document.getElementById('final-score').innerText = score;
+        document.getElementById('gameover-overlay').classList.remove('hidden');
+
+        // [랭킹 저장 로직]
+        // 점수가 0보다 크고 로그인되어 있을 때만 저장
+        if (score > 0 && currentUser) {
+            saveScore(score);
+        }
+    }
+
+    // 랭킹 저장 함수 (AJAX)
+    function saveScore(finalScore) {
+        fetch('/game/acid/score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ score: finalScore })
+        })
+        .then(res => res.json())
+        .then(data => {
+            // 랭킹이 업데이트되었으면, 화면의 리스트도 갱신해줍니다.
+            // (여기서는 간단히 리로드하도록 유도하지만, JS로 리스트를 다시 그릴 수도 있습니다)
+            console.log("랭킹 저장 완료");
+        })
+        .catch(err => console.error("랭킹 저장 실패", err));
+    }
+</script>
+{% endblock %}

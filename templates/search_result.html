@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}'{{ keyword }}' 검색 결과 - 오량어학사전{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    
+    <div class="mb-8 border-b border-green-100 pb-4">
+        <p class="text-sm text-gray-500 mb-1">검색어</p>
+        <h2 class="text-3xl font-bold text-green-800">
+            '{{ keyword }}'
+            <span class="text-lg text-gray-500 font-normal ml-2">검색 결과</span>
+        </h2>
+    </div>
+
+    <div class="space-y-6">
+        {% if results %}
+            {% for item in results %}
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-800 flex items-end gap-2">
+                            {{ item.word }}
+                            {% if item.hanja %}
+                                <span class="text-sm font-normal text-gray-400">({{ item.hanja }})</span>
+                            {% endif %}
+                        </h3>
+                        
+                        <div class="mt-1 text-sm text-green-600 font-medium bg-green-50 inline-block px-2 py-0.5 rounded">
+                            {{ item.pos }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 text-gray-700 leading-relaxed">
+                    {% if item.sense and item.sense|length > 0 %}
+                        {{ item.sense[0].definition }}
+                    {% else %}
+                        <span class="text-gray-400">뜻풀이 정보가 없습니다.</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+        {% else %}
+            <div class="text-center py-20">
+                <div class="text-6xl mb-4">🤔</div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">검색 결과가 없어요</h3>
+                <p class="text-gray-500">단어의 철자가 정확한지 확인해보세요.</p>
+                <a href="/" class="inline-block mt-6 text-green-600 hover:text-green-800 font-medium">
+                    ← 홈으로 돌아가기
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
