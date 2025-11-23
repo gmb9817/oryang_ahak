@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}이지 모드 ({{ index }}/{{ total }}){% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-10 px-4">
+    
+    <div class="flex justify-between text-sm text-gray-500 mb-2 font-bold">
+        <span>Question {{ index }}</span>
+        <span>{{ total }}</span>
+    </div>
+    
+    <div class="w-full h-3 bg-gray-200 rounded-full mb-8 overflow-hidden">
+        <div class="h-full bg-green-500 transition-all duration-500" style="width: {{ ((index / total) * 100)|int }}%"></div>
+    </div>
+
+    <div class="bg-white rounded-3xl shadow-lg border border-green-100 p-8 relative">
+        
+        <div class="text-center mb-10">
+            <h3 class="text-xl md:text-2xl font-bold text-gray-800 break-keep leading-relaxed">
+                "{{ question.meaning }}"
+            </h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for option in options %}
+            <button onclick="submitAnswer(this, '{{ option.word }}')" 
+                    class="quiz-btn w-full py-4 px-6 rounded-xl border-2 border-gray-100 text-lg font-medium text-gray-600 hover:bg-green-50 hover:border-green-400 transition-all">
+                {{ option.word }}
+            </button>
+            {% endfor %}
+        </div>
+
+        <div id="next-btn-area" class="hidden mt-8 text-center">
+            <div id="feedback-msg" class="text-xl font-bold mb-4"></div>
+            <button id="next-btn" onclick="location.reload()" class="bg-green-600 text-white px-10 py-3 rounded-xl font-bold shadow-md hover:bg-green-700 transition-colors">
+                다음 문제 ➔
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let solved = false;
+
+    function submitAnswer(btn, answer) {
+        if (solved) return;
+        solved = true;
+
+        // 서버에 정답 확인 요청
+        fetch('/test/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answer: answer })
+        })
+        .then(res => res.json())
+        .then(data => {
+            const allBtns = document.querySelectorAll('.quiz-btn');
+            const feedback = document.getElementById('feedback-msg');
+            const nextBtn = document.getElementById('next-btn');
+            
+            if (data.correct) {
+                btn.classList.remove('border-gray-100');
+                btn.classList.add('bg-green-500', 'border-green-500', 'text-white');
+                feedback.innerHTML = "<span class='text-green-600'>정답입니다! 🎉</span>";
+            } else {
+                btn.classList.remove('border-gray-100');
+                btn.classList.add('bg-red-500', 'border-red-500', 'text-white');
+                feedback.innerHTML = `<span class='text-red-500'>땡! 정답은 '${data.answer}'입니다.</span>`;
+                
+                // 진짜 정답 버튼 표시
+                allBtns.forEach(b => {
+                    if (b.innerText.trim() === data.answer) {
+                        b.classList.remove('border-gray-100');
+                        b.classList.add('bg-green-500', 'border-green-500', 'text-white');
+                    }
+                });
+            }
+            
+            document.getElementById('next-btn-area').classList.remove('hidden');
+            
+            // [수정 2] 마지막 문제면 버튼 동작 변경 (바로 결과창으로)
+            if (data.finished) {
+                nextBtn.innerText = "결과 보기 ➔";
+                nextBtn.onclick = function() {
+                    window.location.href = "/test/result";
+                };
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            alert("오류가 발생했습니다.");
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}하드 모드 ({{ index }}/{{ total }}){% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-10 px-4">
+    
+    <div class="flex justify-between text-sm text-gray-500 mb-2 font-bold">
+        <span>Question {{ index }}</span>
+        <span>{{ total }}</span>
+    </div>
+    
+    <div class="w-full h-3 bg-gray-200 rounded-full mb-8 overflow-hidden">
+        <div class="h-full bg-red-500 transition-all duration-500" style="width: {{ ((index / total) * 100)|int }}%"></div>
+    </div>
+
+    <div class="bg-white rounded-3xl shadow-lg border border-red-100 p-8 md:p-12 relative">
+        
+        <div class="text-center mb-10">
+            <span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded font-bold tracking-wider">HARD MODE</span>
+            <h3 class="text-xl md:text-2xl font-bold text-gray-800 mt-6 leading-relaxed break-keep">
+                "{{ question.meaning }}"
+            </h3>
+            <p class="text-gray-400 text-sm mt-3">위 뜻에 해당하는 단어를 정확히 입력하세요.</p>
+        </div>
+
+        <div class="max-w-md mx-auto">
+            <input type="text" id="answer-input" 
+                   class="w-full text-center text-2xl py-3 border-b-2 border-gray-300 focus:border-red-500 outline-none font-bold text-gray-800 placeholder-gray-300 transition-colors bg-transparent"
+                   placeholder="정답 입력" autocomplete="off"
+                   onkeyup="if(window.event.keyCode==13){submitAnswer()}">
+            
+            <button id="submit-btn" onclick="submitAnswer()" class="w-full mt-8 bg-red-500 text-white text-lg font-bold py-3 rounded-xl shadow hover:bg-red-600 transition-transform transform active:scale-95">
+                정답 제출
+            </button>
+        </div>
+
+        <div id="next-area" class="hidden mt-8 text-center border-t border-gray-100 pt-6 animate-fade-in-up">
+            <div id="feedback-msg" class="text-xl font-bold mb-4"></div>
+            
+            <div id="correct-display" class="hidden mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <span class="text-gray-500 text-sm block mb-1">정답은</span>
+                <span class="text-green-600 font-bold text-2xl">{{ question.word }}</span>
+            </div>
+            
+            <button onclick="location.reload()" id="next-btn" class="bg-gray-800 text-white px-10 py-3 rounded-xl font-bold hover:bg-gray-900 shadow-lg transition-colors">
+                다음 문제 ➔
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let solved = false;
+
+    function submitAnswer() {
+        if (solved) return;
+        
+        const input = document.getElementById('answer-input');
+        const answer = input.value.trim();
+        
+        if(!answer) { 
+            alert("답을 입력하세요!"); 
+            input.focus();
+            return; 
+        }
+        
+        solved = true;
+        input.disabled = true;
+        document.getElementById('submit-btn').classList.add('hidden');
+
+        fetch('/test/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answer: answer })
+        })
+        .then(res => res.json())
+        .then(data => {
+            const feedback = document.getElementById('feedback-msg');
+            const correctDisplay = document.getElementById('correct-display');
+            const nextBtn = document.getElementById('next-btn');
+            
+            if (data.correct) {
+                feedback.innerHTML = "🔥 <span class='text-green-600'>완벽합니다! 정답입니다!</span>";
+                input.classList.add('text-green-600', 'border-green-500');
+            } else {
+                feedback.innerHTML = "😭 <span class='text-red-500'>틀렸습니다...</span>";
+                input.classList.add('text-red-500', 'border-red-500', 'line-through');
+                
+                // API가 보내준 정답으로 텍스트 업데이트
+                correctDisplay.querySelector('span.text-2xl').innerText = data.answer;
+                correctDisplay.classList.remove('hidden');
+            }
+            
+            document.getElementById('next-area').classList.remove('hidden');
+            
+            if (data.finished) {
+                nextBtn.innerText = "결과 확인 ➔";
+                nextBtn.classList.remove('bg-gray-800', 'hover:bg-gray-900');
+                nextBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                
+                nextBtn.onclick = function() {
+                    window.location.href = "/test/result";
+                };
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            alert("오류가 발생했습니다. 다시 시도해주세요.");
+        });
+    }
+</script>
+
+<style>
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up {
+        animation: fadeInUp 0.3s ease-out forwards;
+    }
+</style>
+{% endblock %}

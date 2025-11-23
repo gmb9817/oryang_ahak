@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}테스트 모드 선택 - 오량어학사전{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12 text-center">
+    
+    <h2 class="text-3xl font-bold text-green-800 mb-4">단어 실력 테스트</h2>
+    <p class="text-gray-600 mb-12 text-lg">
+        총 10문제가 출제됩니다.<br>
+        자신의 실력에 맞는 모드를 선택해서 도전해보세요!
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 px-4 max-w-3xl mx-auto">
+        <a href="/test/start/easy" class="group bg-white rounded-3xl shadow-lg border-2 border-green-50 p-10 hover:border-green-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2">
+            <div class="text-6xl mb-6">🐣</div>
+            <h3 class="text-2xl font-bold text-gray-800 mb-3 group-hover:text-green-600">이지 모드</h3>
+            <p class="text-gray-500 leading-relaxed">
+                제시된 뜻을 보고<br>
+                알맞은 단어를 고르세요.<br>
+                <span class="text-sm bg-green-100 text-green-700 px-2 py-0.5 rounded mt-2 inline-block">4지 선다형</span>
+            </p>
+        </a>
+
+        <a href="/test/start/hard" class="group bg-white rounded-3xl shadow-lg border-2 border-green-50 p-10 hover:border-red-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2">
+            <div class="text-6xl mb-6">🔥</div>
+            <h3 class="text-2xl font-bold text-gray-800 mb-3 group-hover:text-red-600">하드 모드</h3>
+            <p class="text-gray-500 leading-relaxed">
+                뜻을 보고<br>
+                정확한 단어를 입력하세요.<br>
+                <span class="text-sm bg-red-100 text-red-700 px-2 py-0.5 rounded mt-2 inline-block">주관식 타이핑</span>
+            </p>
+        </a>
+    </div>
+
+</div>
+{% endblock %}

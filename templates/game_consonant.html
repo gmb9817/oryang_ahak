@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}초성 퀴즈 - 오량어학사전{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-6 px-4 select-none grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <div class="lg:col-span-2">
+        <div class="flex justify-between items-center mb-4 bg-white p-4 rounded-2xl shadow-sm border border-indigo-100">
+            <div class="flex items-center gap-4">
+                <div class="text-gray-500 font-bold">SCORE</div>
+                <div id="score-display" class="text-3xl font-black text-indigo-600">0</div>
+            </div>
+            <div class="flex items-center gap-2 w-1/2">
+                <span class="text-gray-400 text-sm font-bold">TIME</span>
+                <div class="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="time-bar" class="h-full bg-indigo-500 transition-all duration-1000 ease-linear" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="game-screen" class="relative w-full h-[500px] bg-white rounded-xl shadow-lg overflow-hidden border-4 border-indigo-50 flex flex-col items-center justify-center p-8 text-center">
+            
+            <div id="start-overlay" class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-indigo-900/90 text-white">
+                <div class="text-6xl mb-4">🕵️</div>
+                <h1 class="text-4xl font-bold mb-2">초성 퀴즈</h1>
+                <p class="text-indigo-200 mb-8">60초 동안 최대한 많은 단어를 맞히세요!</p>
+                <button onclick="startGame()" class="bg-white text-indigo-900 px-8 py-3 rounded-full font-bold text-xl transition-transform transform hover:scale-105 shadow-lg">
+                    도전 시작
+                </button>
+            </div>
+
+            <div id="gameover-overlay" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center bg-gray-900/90 text-white backdrop-blur-sm p-6">
+                <div class="text-6xl mb-4">⏰</div>
+                <h2 class="text-3xl font-bold mb-2">TIME OVER</h2>
+                <p class="text-xl mb-6">최종 점수: <span id="final-score" class="font-bold text-yellow-300">0</span></p>
+                <button onclick="location.reload()" class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold text-lg hover:bg-indigo-700 transition">
+                    다시 도전하기
+                </button>
+            </div>
+
+            <div id="quiz-area" class="w-full max-w-lg opacity-0 transition-opacity duration-300">
+                <div class="mb-8">
+                    <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-bold">HINT (뜻)</span>
+                    <h3 id="question-meaning" class="text-xl md:text-2xl font-medium text-gray-700 mt-4 leading-relaxed break-keep">
+                        문제 뜻이 여기에 나옵니다.
+                    </h3>
+                </div>
+
+                <div class="mb-10">
+                    <div id="question-chosung" class="text-6xl md:text-7xl font-black text-indigo-600 tracking-widest">
+                        ㅎ ㄱ
+                    </div>
+                </div>
+
+                <div id="answer-reveal" class="hidden mt-4 animate-bounce">
+                    <span class="text-gray-400 text-sm">정답은</span>
+                    <span id="reveal-word" class="text-red-500 text-3xl font-bold ml-2"></span>
+                </div>
+            </div>
+            
+            <div id="feedback" class="absolute top-10 right-10 text-6xl opacity-0 transition-opacity duration-500 font-black"></div>
+
+        </div>
+
+        <div class="mt-6 relative flex gap-2">
+            <input type="text" id="input-box" 
+                class="flex-grow bg-white border-2 border-indigo-200 text-gray-800 text-center text-2xl py-4 rounded-2xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-bold shadow-md disabled:bg-gray-100"
+                placeholder="정답 입력" autocomplete="off" disabled>
+            
+            <button onclick="passQuestion()" id="pass-btn" class="bg-gray-200 text-gray-500 px-6 rounded-2xl font-bold hover:bg-gray-300 disabled:opacity-50 transition-colors" disabled>
+                PASS<br><span class="text-xs">-2초</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="lg:col-span-1">
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden h-full max-h-[650px]">
+            <div class="bg-indigo-600 p-4 text-white text-center">
+                <h3 class="text-xl font-bold">🏆 초성왕 랭킹</h3>
+                <p class="text-xs text-indigo-100 opacity-80">TOP 10 RANKING</p>
+            </div>
+            
+            <div class="p-4 overflow-y-auto h-full">
+                {% if ranking %}
+                    <ul class="space-y-2">
+                        {% for rank in ranking %}
+                        <li class="flex items-center justify-between p-3 rounded-xl {% if loop.index == 1 %}bg-yellow-50 border border-yellow-200{% elif loop.index == 2 %}bg-gray-50 border border-gray-200{% elif loop.index == 3 %}bg-orange-50 border border-orange-200{% else %}bg-white border border-gray-100{% endif %}">
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold w-6 text-center {% if loop.index <= 3 %}text-xl{% else %}text-gray-400{% endif %}">
+                                    {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
+                                </span>
+                                <span class="font-medium text-gray-800 truncate max-w-[100px]">{{ rank.name }}</span>
+                            </div>
+                            <span class="font-bold text-indigo-600">{{ rank.score }}점</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="text-center py-10 text-gray-400">
+                        <p>아직 등록된 랭킹이 없습니다.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const allWords = {{ all_words|tojson }};
+    const currentUser = {{ user|tojson }};
+    
+    let score = 0;
+    let timeLeft = 60;
+    let totalTime = 60;
+    let timerId;
+    let currentQuestion = null;
+    let isPlaying = false;
+    let isWaiting = false; // 정답 보여주는 중인지 체크
+
+    const inputBox = document.getElementById('input-box');
+    const scoreDisplay = document.getElementById('score-display');
+    const timeBar = document.getElementById('time-bar');
+    const quizArea = document.getElementById('quiz-area');
+    const passBtn = document.getElementById('pass-btn');
+    const feedback = document.getElementById('feedback');
+    const answerReveal = document.getElementById('answer-reveal');
+    const revealWord = document.getElementById('reveal-word');
+
+    function startGame() {
+        document.getElementById('start-overlay').classList.add('hidden');
+        inputBox.disabled = false;
+        passBtn.disabled = false;
+        inputBox.focus();
+        
+        score = 0;
+        timeLeft = 60;
+        isPlaying = true;
+        isWaiting = false;
+        updateUI();
+        
+        quizArea.classList.remove('opacity-0');
+        
+        nextQuestion();
+        timerId = setInterval(gameTimer, 1000);
+    }
+
+    function gameTimer() {
+        if (!isPlaying) return;
+        timeLeft--;
+        updateUI();
+        
+        if (timeLeft <= 0) {
+            gameOver();
+        }
+    }
+
+    function nextQuestion() {
+        // 정답 공개창 숨기기
+        answerReveal.classList.add('hidden');
+        isWaiting = false;
+        inputBox.disabled = false;
+        inputBox.focus();
+
+        currentQuestion = allWords[Math.floor(Math.random() * allWords.length)];
+        
+        document.getElementById('question-meaning').innerText = currentQuestion.meaning;
+        document.getElementById('question-chosung').innerText = currentQuestion.chosung.split('').join(' ');
+    }
+
+    inputBox.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            checkAnswer();
+        }
+    });
+
+    function checkAnswer() {
+        if (!isPlaying || isWaiting) return;
+        
+        const userAns = inputBox.value.trim();
+        if (!userAns) return;
+
+        inputBox.value = '';
+
+        if (userAns === currentQuestion.word) {
+            // 정답 -> 바로 다음 문제
+            score += 10;
+            showFeedback('⭕', 'text-green-500');
+            nextQuestion();
+        } else {
+            // 오답 -> 정답 보여주고 1.5초 대기
+            showFeedback('❌', 'text-red-500');
+            inputBox.classList.add('animate-pulse', 'border-red-400');
+            setTimeout(() => inputBox.classList.remove('animate-pulse', 'border-red-400'), 200);
+            
+            // [추가됨] 정답 공개 로직
+            revealWord.innerText = currentQuestion.word;
+            answerReveal.classList.remove('hidden');
+            
+            isWaiting = true; // 대기 상태로 변경
+            inputBox.disabled = true; // 입력 막기
+
+            // 1.5초 뒤에 다음 문제로
+            setTimeout(() => {
+                if (isPlaying) nextQuestion();
+            }, 1500);
+        }
+        
+        updateUI();
+    }
+
+    function passQuestion() {
+        if (!isPlaying || isWaiting) return;
+        
+        timeLeft = Math.max(0, timeLeft - 2);
+        updateUI();
+        
+        showFeedback('PASS', 'text-gray-400', 'text-2xl');
+        
+        // 패스할 때도 정답을 잠깐 보여줄까요? 아니면 바로 넘어갈까요?
+        // 여기서는 바로 넘어가는 걸로 유지합니다 (속도감 위해)
+        nextQuestion();
+    }
+
+    function showFeedback(text, colorClass, sizeClass='text-6xl') {
+        feedback.innerText = text;
+        feedback.className = `absolute top-10 right-10 font-black opacity-100 transition-opacity duration-500 ${colorClass} ${sizeClass}`;
+        
+        setTimeout(() => {
+            feedback.classList.replace('opacity-100', 'opacity-0');
+        }, 500);
+    }
+
+    function updateUI() {
+        scoreDisplay.innerText = score;
+        const percent = (timeLeft / totalTime) * 100;
+        timeBar.style.width = `${percent}%`;
+        
+        if (percent < 20) {
+            timeBar.classList.replace('bg-indigo-500', 'bg-red-500');
+        } else {
+            timeBar.classList.replace('bg-red-500', 'bg-indigo-500');
+        }
+    }
+
+    function gameOver() {
+        isPlaying = false;
+        clearInterval(timerId);
+        inputBox.disabled = true;
+        passBtn.disabled = true;
+        
+        document.getElementById('final-score').innerText = score;
+        document.getElementById('gameover-overlay').classList.remove('hidden');
+
+        if (score > 0 && currentUser) {
+            saveScore(score);
+        }
+    }
+
+    function saveScore(finalScore) {
+        fetch('/game/consonant/score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ score: finalScore })
+        })
+        .then(res => res.json())
+        .then(data => console.log("Saved"))
+        .catch(err => console.error(err));
+    }
+</script>
+{% endblock %}

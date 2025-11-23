@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}미니게임 존 - 오량어학사전{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-12 px-4 text-center">
+    
+    <h2 class="text-4xl font-bold text-green-800 mb-4 tracking-tight">🕹️ 미니게임 존</h2>
+    <p class="text-gray-600 mb-12 text-lg">
+        재미있게 즐기면서 단어를 익혀보세요!<br>
+        다양한 게임이 계속 추가될 예정입니다.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        
+        <a href="/game/acid" class="group relative bg-white rounded-3xl shadow-lg border-2 border-blue-50 overflow-hidden hover:border-blue-400 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2">
+            <div class="absolute top-0 left-0 w-full h-2 bg-blue-400"></div>
+            <div class="p-10">
+                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform duration-300">☔</div>
+                <h3 class="text-2xl font-bold text-gray-800 mb-3 group-hover:text-blue-600">단어 산성비</h3>
+                <p class="text-gray-500 leading-relaxed">
+                    하늘에서 떨어지는 단어를<br>
+                    타이핑해서 막아내세요!<br>
+                    <span class="text-xs font-bold text-blue-500 mt-3 inline-block bg-blue-50 px-2 py-1 rounded">순발력 / 타자연습</span>
+                </p>
+            </div>
+        </a>
+
+        <a href="/game/consonant" class="group relative bg-white rounded-3xl shadow-lg border-2 border-indigo-50 overflow-hidden hover:border-indigo-400 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2">
+            <div class="absolute top-0 left-0 w-full h-2 bg-indigo-400"></div>
+            <div class="p-10">
+                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform duration-300">🕵️</div>
+                <h3 class="text-2xl font-bold text-gray-800 mb-3 group-hover:text-indigo-600">초성 퀴즈</h3>
+                <p class="text-gray-500 leading-relaxed">
+                    제시된 뜻과 자음(ㄱ~ㅎ)을 보고<br>
+                    단어를 맞춰보세요!<br>
+                    <span class="text-xs font-bold text-indigo-500 mt-3 inline-block bg-indigo-50 px-2 py-1 rounded">60초 타임어택 / 두뇌게임</span>
+                </p>
+            </div>
+        </a>
+    </div>
+
+</div>
+{% endblock %}

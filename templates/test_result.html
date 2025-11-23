@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}테스트 결과 - 오량어학사전{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-16 px-4 text-center">
+    
+    <div class="bg-white rounded-3xl shadow-xl p-10 border-2 border-green-50">
+        <div class="text-6xl mb-6">
+            {% if score == total %} 🏆
+            {% elif score >= total * 0.8 %} 🎉
+            {% elif score >= total * 0.5 %} 😊
+            {% else %} 📚 {% endif %}
+        </div>
+
+        <h2 class="text-3xl font-bold text-gray-800 mb-2">테스트 완료!</h2>
+        <p class="text-gray-500 mb-8">수고하셨습니다. 결과는?</p>
+
+        <div class="text-5xl font-black text-green-600 mb-2">
+            {{ score }} <span class="text-2xl text-gray-400 font-medium">/ {{ total }}</span>
+        </div>
+        <p class="text-green-600 font-medium mb-10">
+            {% if score == total %} 완벽합니다! 모든 단어를 마스터하셨네요!
+            {% elif score >= total * 0.7 %} 훌륭한 실력이에요!
+            {% else %} 조금 더 연습해볼까요? 화이팅! {% endif %}
+        </p>
+
+        <div class="flex justify-center gap-4">
+            <a href="/test" class="bg-gray-100 text-gray-600 px-6 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
+                메뉴로 이동
+            </a>
+            <a href="/test/start/easy" class="bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 shadow-md transition">
+                다시 도전하기
+            </a>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
