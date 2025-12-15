@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}칼럼 - 오량어학사전{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-12 px-4">
+    
+    <div class="text-center mb-12">
+        <h2 class="text-4xl font-bold text-green-800 mb-4">📰 칼럼</h2>
+        <p class="text-gray-600 text-lg">
+            한국어와 한국 문화에 대한 칼럼을 읽고 퀴즈를 풀어보세요
+        </p>
+    </div>
+
+    {% if columns %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for column in columns %}
+        <a href="/column/{{ column.id }}" class="group bg-white rounded-2xl shadow-lg border-2 border-gray-100 hover:border-green-400 hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-2">
+            <div class="p-6">
+                <!-- 날짜 -->
+                <div class="flex items-center gap-2 text-sm text-gray-500 mb-3">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <span>{{ column.date }}</span>
+                </div>
+                
+                <!-- 제목 -->
+                <h3 class="text-xl font-bold text-gray-800 group-hover:text-green-600 transition-colors mb-3 leading-tight">
+                    {{ column.title }}
+                </h3>
+                
+                <!-- 미리보기 -->
+                <p class="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3">
+                    {{ column.preview }}
+                </p>
+                
+                <!-- 작성자 및 버튼 -->
+                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                    <div class="flex items-center gap-2 text-xs text-gray-500">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        <span>{{ column.author }}</span>
+                    </div>
+                    <div class="flex items-center gap-1 text-green-600 font-bold text-sm group-hover:gap-2 transition-all">
+                        <span>읽기</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-20">
+        <div class="text-6xl mb-4">📭</div>
+        <h3 class="text-2xl font-bold text-gray-800 mb-2">등록된 칼럼이 없습니다</h3>
+        <p class="text-gray-500">
+            곧 새로운 칼럼이 추가될 예정입니다.
+        </p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

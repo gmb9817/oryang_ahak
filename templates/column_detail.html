@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}{{ column.title }} - 칼럼{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-8 px-4">
+    
+    <!-- 뒤로가기 -->
+    <div class="mb-6">
+        <a href="/column" class="inline-flex items-center gap-2 text-green-600 hover:text-green-700 font-bold">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            칼럼 목록으로
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <!-- 왼쪽: 칼럼 내용 -->
+        <div class="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100">
+            <!-- 헤더 -->
+            <div class="mb-6 pb-6 border-b-2 border-gray-100">
+                <h1 class="text-3xl font-bold text-gray-800 mb-4">{{ column.title }}</h1>
+                <div class="flex items-center gap-4 text-sm text-gray-500">
+                    <div class="flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        <span>{{ column.date }}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        <span>{{ column.author }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 본문 -->
+            <div class="prose prose-lg max-w-none">
+                <div class="text-gray-700 leading-relaxed whitespace-pre-line">{{ column.content }}</div>
+            </div>
+        </div>
+
+        <!-- 오른쪽: 문제 -->
+        <div class="bg-white rounded-2xl shadow-lg p-8 border-2 border-green-100">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-green-700 mb-2">📝 퀴즈</h2>
+                <p class="text-gray-600 text-sm">칼럼을 읽고 문제를 풀어보세요!</p>
+            </div>
+
+            <form id="quizForm" class="space-y-6">
+                {% for q in column.questions %}
+                <div class="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
+                    <p class="font-bold text-gray-800 mb-4">{{ loop.index }}. {{ q.question }}</p>
+                    
+                    <div class="space-y-3">
+                        {% for choice in q.choices %}
+                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-white cursor-pointer transition-colors border border-transparent hover:border-green-300">
+                            <input type="radio" 
+                                   name="question_{{ loop.index0 }}" 
+                                   value="{{ loop.index0 }}"
+                                   class="w-5 h-5 text-green-600 focus:ring-green-500"
+                                   required>
+                            <span class="text-gray-700">{{ choice }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+
+                <button type="submit" 
+                        class="w-full px-6 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-bold text-lg shadow-lg">
+                    정답 확인하기
+                </button>
+            </form>
+
+            <!-- 결과 표시 영역 -->
+            <div id="resultArea" class="hidden mt-6"></div>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+const columnId = "{{ column.id }}";
+const questions = {{ column.questions | tojson }};
+
+document.getElementById('quizForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // 답안 수집
+    const answers = [];
+    for (let i = 0; i < questions.length; i++) {
+        const selected = document.querySelector(`input[name="question_${i}"]:checked`);
+        if (selected) {
+            answers.push(parseInt(selected.value));
+        } else {
+            answers.push(-1); // 미선택
+        }
+    }
+    
+    // 서버에 제출
+    try {
+        const response = await fetch('/column/submit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                column_id: columnId,
+                answers: answers
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showResults(result);
+        } else {
+            alert('오류: ' + (result.error || '알 수 없는 오류'));
+        }
+    } catch (error) {
+        alert('제출 중 오류가 발생했습니다: ' + error.message);
+    }
+});
+
+function showResults(result) {
+    const resultArea = document.getElementById('resultArea');
+    const form = document.getElementById('quizForm');
+    
+    // 폼 비활성화
+    const inputs = form.querySelectorAll('input');
+    inputs.forEach(input => input.disabled = true);
+    
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    
+    // 결과 표시
+    let html = `
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-indigo-200">
+            <h3 class="text-2xl font-bold text-indigo-700 mb-4">📊 결과</h3>
+            <div class="grid grid-cols-3 gap-4 mb-6">
+                <div class="bg-white rounded-lg p-4 text-center">
+                    <p class="text-sm text-gray-600 mb-1">전체</p>
+                    <p class="text-3xl font-bold text-gray-800">${result.total}</p>
+                </div>
+                <div class="bg-green-100 rounded-lg p-4 text-center">
+                    <p class="text-sm text-green-600 mb-1">정답</p>
+                    <p class="text-3xl font-bold text-green-600">${result.correct}</p>
+                </div>
+                <div class="bg-red-100 rounded-lg p-4 text-center">
+                    <p class="text-sm text-red-600 mb-1">오답</p>
+                    <p class="text-3xl font-bold text-red-600">${result.wrong}</p>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+    `;
+    
+    result.details.forEach((detail, index) => {
+        const icon = detail.is_correct ? '✅' : '❌';
+        const bgColor = detail.is_correct ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300';
+        const textColor = detail.is_correct ? 'text-green-700' : 'text-red-700';
+        
+        html += `
+            <div class="${bgColor} border-2 rounded-lg p-4">
+                <p class="font-bold ${textColor} mb-2">${icon} 문제 ${index + 1}</p>
+                <p class="text-sm text-gray-700 mb-2"><strong>정답:</strong> ${detail.correct_answer}</p>
+                ${!detail.is_correct ? `<p class="text-sm text-gray-700 mb-2"><strong>선택:</strong> ${detail.user_answer}</p>` : ''}
+                <p class="text-sm text-gray-600 mt-2"><strong>해설:</strong> ${detail.explanation}</p>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    resultArea.innerHTML = html;
+    resultArea.classList.remove('hidden');
+    
+    // 결과 영역으로 스크롤
+    resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+{% endblock %}

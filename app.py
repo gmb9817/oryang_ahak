@@ -9,6 +9,9 @@ from words_db import basic_words
 import json
 from datetime import datetime
 from werkzeug.middleware.proxy_fix import ProxyFix
+import importlib.util
+import glob
+import re
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -21,6 +24,85 @@ RANKING_FILE_CONSONANT = 'ranking_consonant.json'
 CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
 
 dictionary_api_key = '7E98638BB1A1278BE9FB408A95D9DF34'
+
+# 골든벨 게임 생성 권한을 가진 이메일 목록
+ADMIN_EMAILS = [
+    '25_lmj0701@dshs.kr',  # 여기에 권한자 이메일 추가
+]
+
+# 게임 세션 저장소 (메모리)
+game_sessions = {}
+
+def generate_game_code():
+    """6자리 랜덤 숫자 코드 생성"""
+    while True:
+        code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        if code not in game_sessions:
+            return code
+
+def load_quiz_sets():
+    """quiz_sets 폴더의 모든 문제집을 로드"""
+    quiz_sets = []
+    quiz_dir = os.path.join(os.path.dirname(__file__), 'quiz_sets')
+    
+    if not os.path.exists(quiz_dir):
+        return quiz_sets
+    
+    for file_path in glob.glob(os.path.join(quiz_dir, '*.py')):
+        if os.path.basename(file_path).startswith('__'):
+            continue
+            
+        try:
+            spec = importlib.util.spec_from_file_location("quiz_module", file_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            
+            if hasattr(module, 'questions') and hasattr(module, 'quiz_name'):
+                quiz_sets.append({
+                    'id': os.path.splitext(os.path.basename(file_path))[0],
+                    'name': module.quiz_name,
+                    'description': getattr(module, 'quiz_description', ''),
+                    'difficulty': getattr(module, 'difficulty', '보통'),
+                    'count': len(module.questions),
+                    'file': os.path.basename(file_path)
+                })
+        except Exception as e:
+            print(f"[ERROR] 문제집 로드 실패 ({file_path}): {e}")
+    
+    return quiz_sets
+
+def load_columns():
+    """columns 폴더의 모든 칼럼을 로드"""
+    columns = []
+    columns_dir = os.path.join(os.path.dirname(__file__), 'columns')
+    
+    if not os.path.exists(columns_dir):
+        return columns
+    
+    for file_path in glob.glob(os.path.join(columns_dir, '*.py')):
+        if os.path.basename(file_path).startswith('__'):
+            continue
+            
+        try:
+            spec = importlib.util.spec_from_file_location("column_module", file_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            
+            if hasattr(module, 'title') and hasattr(module, 'content'):
+                columns.append({
+                    'id': getattr(module, 'column_id', os.path.splitext(os.path.basename(file_path))[0]),
+                    'title': module.title,
+                    'date': getattr(module, 'date', ''),
+                    'author': getattr(module, 'author', ''),
+                    'preview': module.content[:100] + '...' if len(module.content) > 100 else module.content
+                })
+        except Exception as e:
+            print(f"[ERROR] 칼럼 로드 실패 ({file_path}): {e}")
+    
+    # 날짜순 정렬 (최신순)
+    columns.sort(key=lambda x: x['id'], reverse=True)
+    
+    return columns
 
 def get_chosung(word):
     result = ""
@@ -99,6 +181,8 @@ google = oauth.register(
 @app.route('/')
 def index():
     user = session.get('user')
+    if user:
+        print(f"[DEBUG] 현재 로그인된 이메일: {user.get('email')}")
     return render_template('index.html', user=user)
 
 @app.route('/search')
@@ -324,6 +408,479 @@ def game_consonant_score():
     
     update_ranking_consonant(user['name'], score)
     return {'success': True}
+
+@app.route('/game/goldbell')
+def game_goldbell():
+    user = session.get('user')
+    if not user:
+        return redirect(url_for('login'))
+    
+    # 권한 체크: 게임 생성 가능 여부
+    can_create = user.get('email') in ADMIN_EMAILS
+    
+    return render_template('game_goldbell.html', user=user, can_create=can_create)
+
+@app.route('/game/goldbell/create')
+def game_goldbell_create():
+    user = session.get('user')
+    if not user:
+        return redirect(url_for('login'))
+    
+    # 권한 체크
+    if user.get('email') not in ADMIN_EMAILS:
+        return redirect(url_for('game_goldbell'))
+    
+    # 모든 문제집 로드
+    quiz_sets = load_quiz_sets()
+    
+    return render_template('game_goldbell_create.html', user=user, quiz_sets=quiz_sets)
+
+@app.route('/game/goldbell/save-quiz', methods=['POST'])
+def save_quiz():
+    user = session.get('user')
+    if not user or user.get('email') not in ADMIN_EMAILS:
+        return {'error': '권한이 없습니다.'}, 403
+    
+    try:
+        data = request.get_json()
+        quiz_name = data.get('quiz_name', '').strip()
+        quiz_description = data.get('quiz_description', '').strip()
+        difficulty = data.get('difficulty', '보통')
+        questions = data.get('questions', [])
+        
+        if not quiz_name:
+            return {'error': '문제집 이름이 필요합니다.'}, 400
+        
+        if not questions or len(questions) == 0:
+            return {'error': '최소 1개 이상의 문제가 필요합니다.'}, 400
+        
+        # 파일명 생성 (공백을 언더스코어로, 특수문자 제거)
+        file_id = re.sub(r'[^\w\s-]', '', quiz_name.lower())
+        file_id = re.sub(r'[-\s]+', '_', file_id)
+        
+        # 중복 방지
+        quiz_dir = os.path.join(os.path.dirname(__file__), 'quiz_sets')
+        file_path = os.path.join(quiz_dir, f'{file_id}.py')
+        counter = 1
+        while os.path.exists(file_path):
+            file_path = os.path.join(quiz_dir, f'{file_id}_{counter}.py')
+            counter += 1
+        
+        # 파일 내용 생성
+        file_content = f"""# -*- coding: utf-8 -*-
+\"\"\"
+{quiz_name}
+난이도: {difficulty}
+\"\"\"
+
+quiz_name = "{quiz_name}"
+quiz_description = "{quiz_description}"
+difficulty = "{difficulty}"
+
+questions = [
+"""
+        
+        for q in questions:
+            file_content += f"""    {{
+        "question": "{q['question']}",
+        "answer": "{q['answer']}",
+        "wrong1": "{q['wrong1']}",
+        "wrong2": "{q['wrong2']}",
+        "wrong3": "{q['wrong3']}"
+    }},
+"""
+        
+        file_content += """]
+"""
+        
+        # 파일 저장
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(file_content)
+        
+        return {'success': True, 'message': '문제집이 저장되었습니다.', 'file': os.path.basename(file_path)}
+        
+    except Exception as e:
+        print(f"[ERROR] 문제집 저장 실패: {e}")
+        return {'error': str(e)}, 500
+
+@app.route('/game/goldbell/start', methods=['POST'])
+def start_goldbell_game():
+    user = session.get('user')
+    if not user or user.get('email') not in ADMIN_EMAILS:
+        return {'error': '권한이 없습니다.'}, 403
+    
+    try:
+        data = request.get_json()
+        quiz_id = data.get('quiz_id')
+        
+        if not quiz_id:
+            return {'error': '문제집을 선택해주세요.'}, 400
+        
+        # 문제집 로드
+        quiz_dir = os.path.join(os.path.dirname(__file__), 'quiz_sets')
+        quiz_file = os.path.join(quiz_dir, f'{quiz_id}.py')
+        
+        if not os.path.exists(quiz_file):
+            return {'error': '문제집을 찾을 수 없습니다.'}, 404
+        
+        spec = importlib.util.spec_from_file_location("quiz_module", quiz_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        if not hasattr(module, 'questions'):
+            return {'error': '문제집 형식이 올바르지 않습니다.'}, 400
+        
+        # 문제 순서 랜덤 셔플
+        questions = module.questions.copy()
+        random.shuffle(questions)
+        
+        # 게임 코드 생성
+        game_code = generate_game_code()
+        
+        # 게임 세션 생성
+        game_sessions[game_code] = {
+            'code': game_code,
+            'host': user.get('name'),
+            'host_email': user.get('email'),
+            'quiz_id': quiz_id,
+            'quiz_name': getattr(module, 'quiz_name', quiz_id),
+            'questions': questions,
+            'players': [],
+            'status': 'waiting',  # waiting, intro, playing, finished
+            'current_question': -1,  # -1: 시작 전, 0~: 문제 번호
+            'question_start_time': None,
+            'answers': {},  # {question_index: {player_name: {answer, time, correct, score}}}
+            'created_at': datetime.now().isoformat()
+        }
+        
+        return {'success': True, 'game_code': game_code}
+        
+    except Exception as e:
+        print(f"[ERROR] 게임 생성 실패: {e}")
+        return {'error': str(e)}, 500
+
+@app.route('/game/goldbell/begin/<game_code>', methods=['POST'])
+def begin_goldbell_game(game_code):
+    user = session.get('user')
+    if not user:
+        return {'error': '로그인이 필요합니다.'}, 401
+    
+    if game_code not in game_sessions:
+        return {'error': '게임을 찾을 수 없습니다.'}, 404
+    
+    game = game_sessions[game_code]
+    
+    # 호스트 권한 체크
+    if game['host_email'] != user.get('email'):
+        return {'error': '호스트만 게임을 시작할 수 있습니다.'}, 403
+    
+    if game['status'] != 'waiting':
+        return {'error': '이미 시작된 게임입니다.'}, 400
+    
+    # 게임 시작
+    game['status'] = 'intro'
+    
+    return {'success': True}
+
+@app.route('/game/goldbell/next/<game_code>', methods=['POST'])
+def next_question(game_code):
+    user = session.get('user')
+    if not user:
+        return {'error': '로그인이 필요합니다.'}, 401
+    
+    if game_code not in game_sessions:
+        return {'error': '게임을 찾을 수 없습니다.'}, 404
+    
+    game = game_sessions[game_code]
+    
+    # 호스트 권한 체크
+    if game['host_email'] != user.get('email'):
+        return {'error': '호스트만 제어할 수 있습니다.'}, 403
+    
+    game['current_question'] += 1
+    
+    if game['current_question'] >= len(game['questions']):
+        game['status'] = 'finished'
+        return {'success': True, 'finished': True}
+    
+    game['status'] = 'playing'
+    game['question_start_time'] = datetime.now().isoformat()
+    
+    return {'success': True, 'question_index': game['current_question']}
+
+@app.route('/game/goldbell/host/<game_code>')
+def goldbell_host(game_code):
+    user = session.get('user')
+    if not user:
+        return redirect(url_for('login'))
+    
+    if game_code not in game_sessions:
+        return "게임을 찾을 수 없습니다.", 404
+    
+    game = game_sessions[game_code]
+    
+    # 호스트 권한 체크
+    if game['host_email'] != user.get('email'):
+        return "호스트만 접근할 수 있습니다.", 403
+    
+    return render_template('game_goldbell_host.html', user=user, game=game)
+
+@app.route('/game/goldbell/join', methods=['POST'])
+def join_goldbell_game():
+    user = session.get('user')
+    if not user:
+        return {'error': '로그인이 필요합니다.'}, 401
+    
+    try:
+        data = request.get_json()
+        game_code = data.get('code', '').strip()
+        
+        if not game_code:
+            return {'error': '게임 코드를 입력해주세요.'}, 400
+        
+        if game_code not in game_sessions:
+            return {'error': '존재하지 않는 게임 코드입니다.'}, 404
+        
+        game = game_sessions[game_code]
+        
+        if game['status'] != 'waiting':
+            return {'error': '이미 시작된 게임입니다.'}, 400
+        
+        # 중복 참여 체크
+        player_names = [p['name'] for p in game['players']]
+        if user.get('name') in player_names:
+            return {'error': '이미 참여한 게임입니다.'}, 400
+        
+        # 플레이어 추가
+        game['players'].append({
+            'name': user.get('name'),
+            'email': user.get('email'),
+            'picture': user.get('picture'),
+            'score': 0,
+            'joined_at': datetime.now().isoformat()
+        })
+        
+        return {'success': True, 'game_code': game_code}
+        
+    except Exception as e:
+        print(f"[ERROR] 게임 참여 실패: {e}")
+        return {'error': str(e)}, 500
+
+@app.route('/game/goldbell/player/<game_code>')
+def goldbell_player(game_code):
+    user = session.get('user')
+    if not user:
+        return redirect(url_for('login'))
+    
+    if game_code not in game_sessions:
+        return "게임을 찾을 수 없습니다.", 404
+    
+    game = game_sessions[game_code]
+    
+    # 참여자 확인
+    player_names = [p['name'] for p in game['players']]
+    if user.get('name') not in player_names:
+        return "게임에 참여하지 않았습니다.", 403
+    
+    # 게임이 진행 중이면 선택지 랜덤 배치
+    shuffled_choices = None
+    if game['status'] == 'playing' and game['current_question'] >= 0:
+        question = game['questions'][game['current_question']]
+        choices = [
+            {'text': question['answer'], 'color': 'red', 'is_answer': True},
+            {'text': question['wrong1'], 'color': 'blue', 'is_answer': False},
+            {'text': question['wrong2'], 'color': 'yellow', 'is_answer': False},
+            {'text': question['wrong3'], 'color': 'green', 'is_answer': False}
+        ]
+        shuffled_choices = random.sample(choices, len(choices))
+    
+    return render_template('game_goldbell_player.html', user=user, game=game, shuffled_choices=shuffled_choices)
+
+@app.route('/game/goldbell/submit/<game_code>', methods=['POST'])
+def submit_answer(game_code):
+    user = session.get('user')
+    if not user:
+        return {'error': '로그인이 필요합니다.'}, 401
+    
+    if game_code not in game_sessions:
+        return {'error': '게임을 찾을 수 없습니다.'}, 404
+    
+    game = game_sessions[game_code]
+    
+    # 참여자 확인
+    player_names = [p['name'] for p in game['players']]
+    if user.get('name') not in player_names:
+        return {'error': '게임에 참여하지 않았습니다.'}, 403
+    
+    try:
+        data = request.get_json()
+        answer = data.get('answer')
+        
+        if game['status'] != 'playing':
+            return {'error': '현재 답변을 받을 수 없습니다.'}, 400
+        
+        question_index = game['current_question']
+        question = game['questions'][question_index]
+        
+        # 이미 답변했는지 체크
+        if question_index not in game['answers']:
+            game['answers'][question_index] = {}
+        
+        if user.get('name') in game['answers'][question_index]:
+            return {'error': '이미 답변했습니다.'}, 400
+        
+        # 답변 시간 계산
+        start_time = datetime.fromisoformat(game['question_start_time'])
+        answer_time = datetime.now()
+        time_taken = (answer_time - start_time).total_seconds()
+        
+        # 정답 확인
+        correct = (answer == question['answer'])
+        
+        # 점수 계산 (정답이면 시간에 따라 500~1000점, 틀리면 0점)
+        score = 0
+        if correct:
+            # 빠를수록 높은 점수 (0초: 1000점, 30초 이상: 500점)
+            if time_taken <= 1:
+                score = 1000
+            elif time_taken >= 30:
+                score = 500
+            else:
+                # 선형 감소: 1000 - (시간 * 500/30)
+                score = int(1000 - (time_taken - 1) * (500 / 29))
+        
+        # 답변 저장
+        game['answers'][question_index][user.get('name')] = {
+            'answer': answer,
+            'time': time_taken,
+            'correct': correct,
+            'score': score,
+            'submitted_at': answer_time.isoformat()
+        }
+        
+        # 플레이어 총점 업데이트
+        for player in game['players']:
+            if player['name'] == user.get('name'):
+                player['score'] += score
+                break
+        
+        return {
+            'success': True,
+            'correct': correct,
+            'score': score,
+            'correct_answer': question['answer']
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] 답변 제출 실패: {e}")
+        return {'error': str(e)}, 500
+
+@app.route('/game/goldbell/status/<game_code>')
+def game_status(game_code):
+    """게임 상태 조회 (폴링용)"""
+    if game_code not in game_sessions:
+        return {'error': '게임을 찾을 수 없습니다.'}, 404
+    
+    game = game_sessions[game_code]
+    
+    return {
+        'status': game['status'],
+        'current_question': game['current_question'],
+        'total_questions': len(game['questions']),
+        'player_count': len(game['players'])
+    }
+
+@app.route('/column')
+def column_list():
+    user = session.get('user')
+    columns = load_columns()
+    return render_template('column_list.html', user=user, columns=columns)
+
+@app.route('/column/<column_id>')
+def column_detail(column_id):
+    user = session.get('user')
+    
+    # 칼럼 로드
+    columns_dir = os.path.join(os.path.dirname(__file__), 'columns')
+    column_file = os.path.join(columns_dir, f'{column_id}.py')
+    
+    if not os.path.exists(column_file):
+        return "칼럼을 찾을 수 없습니다.", 404
+    
+    try:
+        spec = importlib.util.spec_from_file_location("column_module", column_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        column = {
+            'id': column_id,
+            'title': module.title,
+            'date': getattr(module, 'date', ''),
+            'author': getattr(module, 'author', ''),
+            'content': module.content,
+            'questions': module.questions
+        }
+        
+        return render_template('column_detail.html', user=user, column=column)
+        
+    except Exception as e:
+        print(f"[ERROR] 칼럼 로드 실패: {e}")
+        return "칼럼을 불러올 수 없습니다.", 500
+
+@app.route('/column/submit', methods=['POST'])
+def column_submit():
+    """칼럼 퀴즈 정답 체크"""
+    try:
+        data = request.get_json()
+        column_id = data.get('column_id')
+        user_answers = data.get('answers', [])  # [0, 2, 1] 형태
+        
+        # 칼럼 로드
+        columns_dir = os.path.join(os.path.dirname(__file__), 'columns')
+        column_file = os.path.join(columns_dir, f'{column_id}.py')
+        
+        if not os.path.exists(column_file):
+            return {'error': '칼럼을 찾을 수 없습니다.'}, 404
+        
+        spec = importlib.util.spec_from_file_location("column_module", column_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        questions = module.questions
+        
+        # 정답 체크
+        correct_count = 0
+        wrong_count = 0
+        details = []
+        
+        for i, question in enumerate(questions):
+            user_answer_idx = user_answers[i] if i < len(user_answers) else -1
+            correct_answer_idx = question['answer']
+            
+            is_correct = (user_answer_idx == correct_answer_idx)
+            
+            if is_correct:
+                correct_count += 1
+            else:
+                wrong_count += 1
+            
+            details.append({
+                'is_correct': is_correct,
+                'correct_answer': question['choices'][correct_answer_idx],
+                'user_answer': question['choices'][user_answer_idx] if 0 <= user_answer_idx < len(question['choices']) else '선택 안 함',
+                'explanation': question.get('explanation', '')
+            })
+        
+        return {
+            'total': len(questions),
+            'correct': correct_count,
+            'wrong': wrong_count,
+            'details': details
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] 정답 체크 실패: {e}")
+        return {'error': str(e)}, 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
