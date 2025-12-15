@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}골든벨 - 오량어학사전{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-12 px-4 text-center">
+    
+    <h2 class="text-4xl font-bold text-yellow-600 mb-4 tracking-tight">🔔 골든벨</h2>
+    <p class="text-gray-600 mb-12 text-lg">
+        실시간 다인 퀴즈 게임에 참여하거나 직접 만들어보세요!
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        
+        <!-- 게임 참여 -->
+        <div class="group relative bg-white rounded-3xl shadow-lg border-2 border-green-50 overflow-hidden hover:border-green-400 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer">
+            <div class="absolute top-0 left-0 w-full h-2 bg-green-400"></div>
+            <div class="p-10">
+                <div class="text-6xl mb-6 group-hover:scale-110 transition-transform duration-300">🎮</div>
+                <h3 class="text-2xl font-bold text-gray-800 mb-3 group-hover:text-green-600">게임 참여</h3>
+                <p class="text-gray-500 leading-relaxed mb-6">
+                    진행 중인 게임 코드를 입력하고<br>
+                    친구들과 함께 퀴즈를 풀어보세요!<br>
+                    <span class="text-xs font-bold text-green-500 mt-3 inline-block bg-green-50 px-2 py-1 rounded">누구나 참여 가능</span>
+                </p>
+                <button onclick="joinGame()" class="mt-4 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-bold">
+                    게임 참여하기
+                </button>
+            </div>
+        </div>
+
+        <!-- 게임 생성 -->
+        <div class="group relative bg-white rounded-3xl shadow-lg border-2 {% if can_create %}border-yellow-50 hover:border-yellow-400 hover:shadow-2xl cursor-pointer{% else %}border-gray-100{% endif %} overflow-hidden transition-all duration-300 transform {% if can_create %}hover:-translate-y-2{% endif %}">
+            <div class="absolute top-0 left-0 w-full h-2 {% if can_create %}bg-yellow-400{% else %}bg-gray-300{% endif %}"></div>
+            <div class="p-10 {% if not can_create %}opacity-50{% endif %}">
+                <div class="text-6xl mb-6 {% if can_create %}group-hover:scale-110{% endif %} transition-transform duration-300">
+                    {% if can_create %}👑{% else %}🔒{% endif %}
+                </div>
+                <h3 class="text-2xl font-bold text-gray-800 mb-3 {% if can_create %}group-hover:text-yellow-600{% endif %}">게임 생성</h3>
+                <p class="text-gray-500 leading-relaxed mb-6">
+                    {% if can_create %}
+                    새로운 골든벨 게임을 만들고<br>
+                    호스트로 게임을 진행하세요!<br>
+                    <span class="text-xs font-bold text-yellow-500 mt-3 inline-block bg-yellow-50 px-2 py-1 rounded">권한자 전용</span>
+                    {% else %}
+                    게임 생성 권한이 없습니다.<br>
+                    관리자에게 문의하세요.<br>
+                    <span class="text-xs font-bold text-gray-400 mt-3 inline-block bg-gray-50 px-2 py-1 rounded">권한 필요</span>
+                    {% endif %}
+                </p>
+                {% if can_create %}
+                <button onclick="createGame()" class="mt-4 px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-bold">
+                    게임 만들기
+                </button>
+                {% else %}
+                <button disabled class="mt-4 px-6 py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed font-bold">
+                    권한 없음
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 게임 코드 입력 모달 -->
+    <div id="joinModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">게임 코드 입력</h3>
+            <p class="text-gray-600 mb-6">호스트가 제공한 게임 코드를 입력하세요.</p>
+            <input 
+                type="text" 
+                id="gameCode" 
+                placeholder="예: ABC123" 
+                class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none text-center text-2xl font-bold uppercase tracking-wider mb-6"
+                maxlength="6"
+            />
+            <div class="flex gap-3">
+                <button onclick="closeJoinModal()" class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-bold">
+                    취소
+                </button>
+                <button onclick="submitGameCode()" class="flex-1 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-bold">
+                    참여하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function joinGame() {
+    document.getElementById('joinModal').classList.remove('hidden');
+    document.getElementById('gameCode').focus();
+}
+
+function closeJoinModal() {
+    document.getElementById('joinModal').classList.add('hidden');
+    document.getElementById('gameCode').value = '';
+}
+
+async function submitGameCode() {
+    const code = document.getElementById('gameCode').value.trim();
+    if (!code) {
+        alert('게임 코드를 입력해주세요.');
+        return;
+    }
+    
+    if (code.length !== 6 || !/^\d+$/.test(code)) {
+        alert('6자리 숫자 코드를 입력해주세요.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/game/goldbell/join', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ code: code })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            // 참여자 페이지로 이동
+            window.location.href = `/game/goldbell/player/${code}`;
+        } else {
+            alert('참여 실패: ' + (result.error || '알 수 없는 오류'));
+        }
+    } catch (error) {
+        alert('참여 중 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+function createGame() {
+    // 게임 생성 페이지로 이동
+    window.location.href = '/game/goldbell/create';
+}
+
+// Enter 키로 게임 코드 제출
+document.addEventListener('DOMContentLoaded', function() {
+    const gameCodeInput = document.getElementById('gameCode');
+    if (gameCodeInput) {
+        gameCodeInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                submitGameCode();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

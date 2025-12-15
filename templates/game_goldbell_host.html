@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}게임 대기실 - 골든벨{% endblock %}
+
+{% block content %}
+
+{% if game.status == 'waiting' %}
+<!-- 대기실 -->
+<div class="max-w-6xl mx-auto py-12 px-4">
+    
+    <!-- 게임 코드 표시 -->
+    <div class="text-center mb-10">
+        <h2 class="text-3xl font-bold text-yellow-600 mb-4">🔔 {{ game.quiz_name }}</h2>
+        <div class="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-2xl p-8 shadow-2xl mb-4">
+            <p class="text-white text-lg mb-2 font-bold">게임 코드</p>
+            <p class="text-white text-7xl font-bold tracking-widest" id="gameCode">{{ game.code }}</p>
+            <p class="text-yellow-100 text-sm mt-4">참여자들에게 이 코드를 알려주세요</p>
+        </div>
+        
+        <div class="flex gap-4 justify-center">
+            <button onclick="copyGameCode()" class="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-bold">
+                📋 코드 복사
+            </button>
+            <button onclick="startGame()" class="px-8 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-bold text-lg">
+                🎮 게임 시작
+            </button>
+        </div>
+    </div>
+
+    <!-- 참여자 목록 -->
+    <div class="bg-white rounded-2xl shadow-lg p-8">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-2xl font-bold text-gray-800">
+                참여자 (<span id="playerCount">{{ game.players|length }}</span>명)
+            </h3>
+            <button onclick="refreshPlayers()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-bold text-sm">
+                🔄 새로고침
+            </button>
+        </div>
+        
+        <div id="playersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% if game.players %}
+                {% for player in game.players %}
+                <div class="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                    <img src="{{ player.picture }}" alt="{{ player.name }}" class="w-12 h-12 rounded-full border-2 border-green-400">
+                    <div>
+                        <p class="font-bold text-gray-800">{{ player.name }}</p>
+                        <p class="text-xs text-gray-500">방금 참여함</p>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-span-full text-center py-12 text-gray-400">
+                    <div class="text-5xl mb-3">👥</div>
+                    <p>아직 참여자가 없습니다.</p>
+                    <p class="text-sm mt-2">게임 코드를 공유하여 참여자를 초대하세요!</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-8 text-center">
+        <a href="/game/goldbell/create" class="inline-block px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-bold">
+            ← 문제집 선택으로 돌아가기
+        </a>
+    </div>
+
+</div>
+
+{% elif game.status == 'intro' %}
+<!-- 시작 화면 -->
+<div class="fixed inset-0 bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center">
+    <div class="text-center text-white">
+        <div class="text-8xl mb-8">🔔</div>
+        <h1 class="text-6xl font-bold mb-4">골든벨이 울립니다!</h1>
+        <p class="text-2xl mb-8">{{ game.quiz_name }}</p>
+        <div class="text-xl">잠시 후 게임이 시작됩니다...</div>
+    </div>
+</div>
+
+<script>
+setTimeout(() => {
+    nextQuestion();
+}, 3000);
+</script>
+
+{% elif game.status == 'playing' %}
+<!-- 문제 표시 화면 -->
+{% set question = game.questions[game.current_question] %}
+<div class="fixed inset-0 bg-gradient-to-br from-blue-500 to-purple-600 flex flex-col">
+    
+    <!-- 상단 정보 -->
+    <div class="bg-white bg-opacity-20 backdrop-blur px-8 py-4 flex items-center justify-between">
+        <div class="text-white font-bold text-xl">
+            문제 {{ game.current_question + 1 }} / {{ game.questions|length }}
+        </div>
+        <div class="text-white font-bold text-xl">
+            참여자: {{ game.players|length }}명
+        </div>
+    </div>
+    
+    <!-- 문제 -->
+    <div class="flex-1 flex items-center justify-center p-12">
+        <div class="text-center max-w-4xl">
+            <div class="text-7xl mb-8">❓</div>
+            <h2 class="text-5xl font-bold text-white mb-12 leading-tight">
+                {{ question.question }}
+            </h2>
+        </div>
+    </div>
+    
+    <!-- 하단 버튼 -->
+    <div class="p-8 text-center">
+        <button onclick="showAnswers()" class="px-8 py-4 bg-white text-blue-600 rounded-xl hover:bg-gray-100 transition-colors font-bold text-xl shadow-2xl">
+            정답 공개 →
+        </button>
+    </div>
+</div>
+
+<script>
+const question = {{ question | tojson }};
+
+function showAnswers() {
+    // 정답 공개 및 다음 문제로
+    if (confirm('정답을 공개하고 다음 문제로 이동하시겠습니까?')) {
+        nextQuestion();
+    }
+}
+</script>
+
+{% elif game.status == 'finished' %}
+<!-- 게임 종료 -->
+<div class="max-w-4xl mx-auto py-12 px-4 text-center">
+    <div class="text-8xl mb-8">🏆</div>
+    <h2 class="text-4xl font-bold text-yellow-600 mb-8">게임 종료!</h2>
+    
+    <div class="bg-white rounded-2xl shadow-lg p-8 mb-8">
+        <h3 class="text-2xl font-bold text-gray-800 mb-6">최종 순위</h3>
+        
+        {% set sorted_players = game.players | sort(attribute='score', reverse=True) %}
+        <div class="space-y-4">
+            {% for player in sorted_players %}
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl {% if loop.index == 1 %}border-4 border-yellow-400{% endif %}">
+                <div class="flex items-center gap-4">
+                    <div class="text-3xl font-bold {% if loop.index == 1 %}text-yellow-500{% elif loop.index == 2 %}text-gray-400{% elif loop.index == 3 %}text-orange-600{% else %}text-gray-600{% endif %}">
+                        #{{ loop.index }}
+                    </div>
+                    <img src="{{ player.picture }}" alt="{{ player.name }}" class="w-12 h-12 rounded-full">
+                    <div class="text-left">
+                        <p class="font-bold text-gray-800">{{ player.name }}</p>
+                    </div>
+                </div>
+                <div class="text-3xl font-bold text-blue-600">
+                    {{ player.score }}점
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <a href="/game/goldbell/create" class="inline-block px-8 py-4 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-bold text-xl">
+        새 게임 시작
+    </a>
+</div>
+
+{% endif %}
+
+<script>
+const gameCode = "{{ game.code }}";
+
+function copyGameCode() {
+    navigator.clipboard.writeText(gameCode).then(() => {
+        alert('게임 코드가 복사되었습니다: ' + gameCode);
+    }).catch(err => {
+        alert('복사 실패: ' + err);
+    });
+}
+
+function refreshPlayers() {
+    location.reload();
+}
+
+async function startGame() {
+    const playerCount = parseInt(document.getElementById('playerCount').textContent);
+    
+    if (playerCount === 0) {
+        alert('참여자가 없습니다. 최소 1명 이상의 참여자가 필요합니다.');
+        return;
+    }
+    
+    if (confirm(`${playerCount}명의 참여자와 함께 게임을 시작하시겠습니까?`)) {
+        try {
+            const response = await fetch(`/game/goldbell/begin/${gameCode}`, {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                // 게임 시작 화면으로 전환
+                showIntro();
+            } else {
+                alert('게임 시작 실패: ' + (result.error || '알 수 없는 오류'));
+            }
+        } catch (error) {
+            alert('오류가 발생했습니다: ' + error.message);
+        }
+    }
+}
+
+function showIntro() {
+    // 인트로 화면 표시 후 첫 문제로 이동
+    document.body.innerHTML = `
+        <div class="fixed inset-0 bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center">
+            <div class="text-center text-white">
+                <div class="text-8xl mb-8">🔔</div>
+                <h1 class="text-6xl font-bold mb-4">골든벨이 울립니다!</h1>
+                <p class="text-2xl mb-8">{{ game.quiz_name }}</p>
+                <div class="text-xl">잠시 후 게임이 시작됩니다...</div>
+            </div>
+        </div>
+    `;
+    
+    setTimeout(() => {
+        nextQuestion();
+    }, 3000);
+}
+
+async function nextQuestion() {
+    try {
+        const response = await fetch(`/game/goldbell/next/${gameCode}`, {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            if (result.finished) {
+                // 게임 종료
+                location.href = `/game/goldbell/host/${gameCode}`;
+                location.reload();
+            } else {
+                // 문제 표시 화면으로 이동
+                location.reload();
+            }
+        } else {
+            alert('오류: ' + (result.error || '알 수 없는 오류'));
+        }
+    } catch (error) {
+        alert('오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 자동 새로고침 (5초마다) - 대기 중일 때만
+if ("{{ game.status }}" === "waiting") {
+    setInterval(() => {
+        refreshPlayers();
+    }, 5000);
+}
+</script>
+{% endblock %}
