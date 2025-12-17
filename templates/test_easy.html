@@ -20,6 +20,14 @@
             <h3 class="text-xl md:text-2xl font-bold text-gray-800 break-keep leading-relaxed">
                 "{{ question.meaning }}"
             </h3>
+            {% if example_with_blank %}
+            <div class="mt-4 pt-4 border-t border-gray-100">
+                <p class="text-sm text-gray-400 mb-1">예문</p>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                    {{ example_with_blank }}
+                </p>
+            </div>
+            {% endif %}
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -33,7 +41,7 @@
 
         <div id="next-btn-area" class="hidden mt-8 text-center">
             <div id="feedback-msg" class="text-xl font-bold mb-4"></div>
-            <button id="next-btn" onclick="location.reload()" class="bg-green-600 text-white px-10 py-3 rounded-xl font-bold shadow-md hover:bg-green-700 transition-colors">
+            <button id="next-btn" onclick="window.location.href='/test/play'" class="bg-green-600 text-white px-10 py-3 rounded-xl font-bold shadow-md hover:bg-green-700 transition-colors">
                 다음 문제 ➔
             </button>
         </div>
@@ -42,6 +50,33 @@
 
 <script>
     let solved = false;
+    let selectedAnswer = null;
+    let selectedBtn = null;
+
+    // 키보드 이벤트 (1-4 숫자키로 선택, 엔터로 제출)
+    document.addEventListener('keydown', function(event) {
+        if (solved) return;
+        
+        const buttons = document.querySelectorAll('.quiz-btn');
+        
+        // 숫자 1-4로 선택
+        if (event.key >= '1' && event.key <= '4') {
+            const index = parseInt(event.key) - 1;
+            if (buttons[index]) {
+                // 이전 선택 해제
+                buttons.forEach(b => b.classList.remove('ring-2', 'ring-green-500'));
+                // 새로운 선택
+                buttons[index].classList.add('ring-2', 'ring-green-500');
+                selectedBtn = buttons[index];
+                selectedAnswer = buttons[index].textContent.trim();
+            }
+        }
+        
+        // 엔터로 제출
+        if (event.key === 'Enter' && selectedBtn && selectedAnswer) {
+            submitAnswer(selectedBtn, selectedAnswer);
+        }
+    });
 
     function submitAnswer(btn, answer) {
         if (solved) return;

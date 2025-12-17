@@ -71,6 +71,14 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS test_cooldowns (
+                email TEXT,
+                mode TEXT,
+                completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (email, mode)
+            )
+        ''')
         conn.commit()
         print("[SUCCESS] SQLite 데이터베이스가 초기화되었습니다.")
 
@@ -171,6 +179,53 @@ def get_points(email):
     except Exception as e:
         print(f"[ERROR] 포인트 조회 실패: {e}")
         return 0
+
+def check_test_cooldown(email, mode):
+    """테스트 쿨다운 체크 (easy: 5분, hard: 7분)"""
+    if not email:
+        return None
+    
+    cooldown_minutes = 5 if mode == 'easy' else 7
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT completed_at 
+                FROM test_cooldowns 
+                WHERE email = ? AND mode = ?
+            ''', (email, mode))
+            row = cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            completed_at = datetime.fromisoformat(row['completed_at'])
+            time_passed = (datetime.now() - completed_at).total_seconds() / 60
+            
+            if time_passed < cooldown_minutes:
+                remaining = cooldown_minutes - time_passed
+                return remaining
+            return None
+    except Exception as e:
+        print(f"[ERROR] 쿨다운 체크 실패: {e}")
+        return None
+
+def set_test_cooldown(email, mode):
+    """테스트 쿨다운 설정"""
+    if not email:
+        return
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO test_cooldowns (email, mode, completed_at)
+                VALUES (?, ?, ?)
+            ''', (email, mode, datetime.now().isoformat()))
+            conn.commit()
+    except Exception as e:
+        print(f"[ERROR] 쿨다운 설정 실패: {e}")
 
 
 
@@ -629,13 +684,58 @@ def shop():
     
     return render_template('shop.html', user=user, profile=profile)
 
+@app.route('/vocabulary')
+def vocabulary():
+    """단어장 페이지"""
+    user = session.get('user')
+    # words_db에서 모든 단어 가져오기
+    all_words = basic_words
+    return render_template('vocabulary.html', user=user, words=all_words)
+
 @app.route('/test')
 def test_menu():
+    """단어 테스트 메뉴"""
     user = session.get('user')
-    return render_template('test_menu.html', user=user)
+    
+    # 쿨다운 시간 체크
+    cooldowns = {'easy': None, 'hard': None}
+    if user:
+        email = user.get('email')
+        cooldowns['easy'] = check_test_cooldown(email, 'easy')
+        cooldowns['hard'] = check_test_cooldown(email, 'hard')
+    
+    return render_template('test_menu.html', user=user, cooldowns=cooldowns)
 
 @app.route('/test/start/<mode>')
 def test_start(mode):
+    user = session.get('user')
+    
+    # 쿨다운 체크
+    if user:
+        email = user.get('email')
+        remaining = check_test_cooldown(email, mode)
+        if remaining is not None:
+            mode_name = '이지 모드' if mode == 'easy' else '하드 모드'
+            minutes = int(remaining)
+            seconds = int((remaining - minutes) * 60)
+            return f"""
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta http-equiv="refresh" content="3;url=/test">
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gray-50 flex items-center justify-center min-h-screen">
+                <div class="bg-white rounded-2xl shadow-lg p-10 text-center max-w-md">
+                    <div class="text-6xl mb-4">⏰</div>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">{mode_name} 쿨다운</h2>
+                    <p class="text-gray-600 mb-2">잔여 시간: <span class="font-bold text-red-600">{minutes}분 {seconds}초</span></p>
+                    <p class="text-sm text-gray-500 mt-4">3초 후 테스트 메뉴로 이동합니다...</p>
+                </div>
+            </body>
+            </html>
+            """
+    
     if not basic_words or len(basic_words) < 10:
         return "단어 데이터가 부족합니다. (최소 10개 필요)"
     
@@ -662,6 +762,11 @@ def test_play():
 
     current_q = quiz['questions'][quiz['current_index']]
     
+    # 예문에서 정답 단어를 빈칸으로 치환
+    example_text = current_q.get('example', '')
+    answer_word = current_q['word']
+    example_with_blank = example_text.replace(answer_word, '___')
+    
     options = []
     if quiz['mode'] == 'easy':
         distractors = random.sample([w for w in basic_words if w['word'] != current_q['word']], 3)
@@ -672,6 +777,7 @@ def test_play():
                            user=user,
                            question=current_q,
                            options=options,
+                           example_with_blank=example_with_blank,
                            index=quiz['current_index'] + 1,
                            total=quiz['total'])
 
@@ -711,15 +817,23 @@ def test_result():
     
     score = quiz['score']
     total = quiz['total']
-    points_earned = score * 10
+    mode = quiz.get('mode', 'easy')
+    
+    # 모드에 따라 점수 차등 지급 (이지: 10점, 하드: 20점)
+    points_per_question = 20 if mode == 'hard' else 10
+    points_earned = score * points_per_question
     
     if user and points_earned > 0:
         add_points(user.get('email'), points_earned)
     
+    # 쿨다운 설정
+    if user:
+        set_test_cooldown(user.get('email'), mode)
+    
     # 세션에서 퀴즈 정보 삭제
     session.pop('quiz', None)
     
-    return render_template('test_result.html', user=user, score=score, total=total, points_earned=points_earned)
+    return render_template('test_result.html', user=user, score=score, total=total, points_earned=points_earned, mode=mode)
 
 @app.route('/game')
 def game_menu():
@@ -743,6 +857,14 @@ def game_acid():
                            all_words=selected_words,
                            ranking=ranking)
 
+@app.route('/game/acid/start', methods=['POST'])
+def game_acid_start():
+    """산성비 게임 시작 시 쿨다운 설정"""
+    user = session.get('user')
+    if user:
+        set_test_cooldown(user.get('email'), 'acid')
+    return {'success': True}
+
 @app.route('/game/acid/score', methods=['POST'])
 def game_acid_score():
     user = session.get('user')
@@ -752,8 +874,8 @@ def game_acid_score():
     data = request.get_json()
     score = data.get('score', 0)
     
-    # 포인트 지급 (점수/10)
-    points_to_add = int(score / 10)
+    # 포인트 지급 (단어당 5점)
+    points_to_add = int(score / 2)
     if points_to_add > 0:
         add_points(user.get('email'), points_to_add)
     
@@ -764,6 +886,7 @@ def game_acid_score():
 @app.route('/game/consonant')
 def game_consonant():
     user = session.get('user')
+    
     if not game_data_pool:
         return "단어 데이터가 없습니다."
     
@@ -788,7 +911,6 @@ def game_consonant_score():
     if score > 5000:
         send_to_discord(user.get('email'), f"Cheater detected in Consonant Game: {user.get('email')} scored {score}")
         return {'success': True}
-
     
     # 포인트 지급 (점수/10)
     points_to_add = int(score / 10)
@@ -1280,7 +1402,19 @@ questions = {json.dumps(validated_questions, ensure_ascii=False, indent=4)}
 def column_list():
     user = session.get('user')
     columns = load_columns()
-    return render_template('column_list.html', user=user, columns=columns)
+    
+    # 사용자가 읽은 칼럼과 풀이 완료한 칼럼 확인
+    read_columns = []
+    solved_columns = []
+    if user:
+        email = user.get('email')
+        profiles = load_profiles()
+        profile = profiles.get(email, {})
+        read_columns = profile.get('read_columns', [])
+        solved_columns = profile.get('solved_columns', [])
+    
+    return render_template('column_list.html', user=user, columns=columns, 
+                         read_columns=read_columns, solved_columns=solved_columns)
 
 @app.route('/column/<column_id>')
 def column_detail(column_id):
@@ -1294,6 +1428,13 @@ def column_detail(column_id):
         profile = profiles.get(email, {})
         solved_columns = profile.get('solved_columns', [])
         already_solved = column_id in solved_columns
+        
+        # 칼럼을 읽음 여부 기록
+        read_columns = profile.get('read_columns', [])
+        if column_id not in read_columns:
+            profile['read_columns'] = read_columns + [column_id]
+            profiles[email] = profile
+            save_profiles(profiles)
     
     # 칼럼 로드
     columns_dir = os.path.join(os.path.dirname(__file__), 'columns')
@@ -1378,10 +1519,10 @@ def column_submit():
             solved_columns = profile.get('solved_columns', [])
             already_solved = column_id in solved_columns
         
-        # 포인트 지급 (정답당 20점, 단 처음 풀 때만)
+        # 포인트 지급 (정답당 100점, 단 처음 풀 때만)
         points_earned = 0
         if user and not already_solved:
-            points_earned = correct_count * 20
+            points_earned = correct_count * 100
             if points_earned > 0:
                 add_points(email, points_earned)
                 

@@ -12,6 +12,27 @@
     </p>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 px-4 max-w-3xl mx-auto">
+        <!-- 이지 모드 -->
+        {% if cooldowns.easy %}
+        <div class="relative bg-white rounded-3xl shadow-lg border-2 border-gray-200 p-10 opacity-60 cursor-not-allowed">
+            <div class="absolute top-4 right-4">
+                <span class="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full font-bold">쿨다운</span>
+            </div>
+            <div class="text-6xl mb-6">🐣</div>
+            <h3 class="text-2xl font-bold text-gray-800 mb-3">이지 모드</h3>
+            <p class="text-gray-500 leading-relaxed mb-4">
+                제시된 뜻을 보고<br>
+                알맞은 단어를 고르세요.<br>
+                <span class="text-sm bg-green-100 text-green-700 px-2 py-0.5 rounded mt-2 inline-block">4지 선다형</span>
+            </p>
+            <div class="mt-4 p-3 bg-red-50 rounded-xl">
+                <p class="text-xs text-red-600 mb-1">다음 도전까지</p>
+                <p class="text-lg font-bold text-red-700" id="easy-countdown" data-remaining="{{ cooldowns.easy }}">
+                    계산 중...
+                </p>
+            </div>
+        </div>
+        {% else %}
         <a href="/test/start/easy" class="group bg-white rounded-3xl shadow-lg border-2 border-green-50 p-10 hover:border-green-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2">
             <div class="text-6xl mb-6">🐣</div>
             <h3 class="text-2xl font-bold text-gray-800 mb-3 group-hover:text-green-600">이지 모드</h3>
@@ -21,7 +42,29 @@
                 <span class="text-sm bg-green-100 text-green-700 px-2 py-0.5 rounded mt-2 inline-block">4지 선다형</span>
             </p>
         </a>
+        {% endif %}
 
+        <!-- 하드 모드 -->
+        {% if cooldowns.hard %}
+        <div class="relative bg-white rounded-3xl shadow-lg border-2 border-gray-200 p-10 opacity-60 cursor-not-allowed">
+            <div class="absolute top-4 right-4">
+                <span class="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full font-bold">쿨다운</span>
+            </div>
+            <div class="text-6xl mb-6">🔥</div>
+            <h3 class="text-2xl font-bold text-gray-800 mb-3">하드 모드</h3>
+            <p class="text-gray-500 leading-relaxed mb-4">
+                뜻을 보고<br>
+                정확한 단어를 입력하세요.<br>
+                <span class="text-sm bg-red-100 text-red-700 px-2 py-0.5 rounded mt-2 inline-block">주관식 타이핑</span>
+            </p>
+            <div class="mt-4 p-3 bg-red-50 rounded-xl">
+                <p class="text-xs text-red-600 mb-1">다음 도전까지</p>
+                <p class="text-lg font-bold text-red-700" id="hard-countdown" data-remaining="{{ cooldowns.hard }}">
+                    계산 중...
+                </p>
+            </div>
+        </div>
+        {% else %}
         <a href="/test/start/hard" class="group bg-white rounded-3xl shadow-lg border-2 border-green-50 p-10 hover:border-red-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2">
             <div class="text-6xl mb-6">🔥</div>
             <h3 class="text-2xl font-bold text-gray-800 mb-3 group-hover:text-red-600">하드 모드</h3>
@@ -31,7 +74,43 @@
                 <span class="text-sm bg-red-100 text-red-700 px-2 py-0.5 rounded mt-2 inline-block">주관식 타이핑</span>
             </p>
         </a>
+        {% endif %}
     </div>
 
 </div>
+
+<script>
+function formatTime(minutes) {
+    const mins = Math.floor(minutes);
+    const secs = Math.floor((minutes - mins) * 60);
+    return `${mins}분 ${secs}초`;
+}
+
+function updateCountdown(elementId) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    let remaining = parseFloat(element.getAttribute('data-remaining'));
+    
+    function update() {
+        if (remaining <= 0) {
+            location.reload();
+            return;
+        }
+        
+        element.textContent = formatTime(remaining);
+        remaining -= 1/60; // 1초씩 감소
+        
+        setTimeout(update, 1000);
+    }
+    
+    update();
+}
+
+// 페이지 로드 시 카운트다운 시작
+document.addEventListener('DOMContentLoaded', function() {
+    updateCountdown('easy-countdown');
+    updateCountdown('hard-countdown');
+});
+</script>
 {% endblock %}

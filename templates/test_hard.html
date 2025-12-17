@@ -21,6 +21,14 @@
             <h3 class="text-xl md:text-2xl font-bold text-gray-800 mt-6 leading-relaxed break-keep">
                 "{{ question.meaning }}"
             </h3>
+            {% if example_with_blank %}
+            <div class="mt-4 pt-4 border-t border-gray-100">
+                <p class="text-sm text-gray-400 mb-1">예문</p>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                    {{ example_with_blank }}
+                </p>
+            </div>
+            {% endif %}
             <p class="text-gray-400 text-sm mt-3">위 뜻에 해당하는 단어를 정확히 입력하세요.</p>
         </div>
 
@@ -43,7 +51,7 @@
                 <span class="text-green-600 font-bold text-2xl">{{ question.word }}</span>
             </div>
             
-            <button onclick="location.reload()" id="next-btn" class="bg-gray-800 text-white px-10 py-3 rounded-xl font-bold hover:bg-gray-900 shadow-lg transition-colors">
+            <button onclick="window.location.href='/test/play'" id="next-btn" class="bg-gray-800 text-white px-10 py-3 rounded-xl font-bold hover:bg-gray-900 shadow-lg transition-colors">
                 다음 문제 ➔
             </button>
         </div>
