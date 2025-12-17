@@ -75,7 +75,7 @@
 
           <div class="flex items-center">
             {% if user %}
-            <div class="flex items-center gap-3">
+            <div class="hidden md:flex items-center gap-3">
               <img
                 src="{{ user.picture }}"
                 alt="프로필"
@@ -105,9 +105,133 @@
               </a>
             </div>
             {% else %}
+            <div class="hidden md:flex">
+              <a
+                href="/login"
+                class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-full font-medium text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+              >
+                로그인
+              </a>
+            </div>
+            {% endif %}
+          </div>
+          <!-- Mobile menu button -->
+          <div class="md:hidden flex items-center">
+            <button
+              id="mobile-menu-button"
+              class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500"
+            >
+              <span class="sr-only">Open main menu</span>
+              <!-- Icon for menu open -->
+              <svg
+                id="menu-open-icon"
+                class="h-6 w-6"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 6h16M4 12h16m-7 6h7"
+                />
+              </svg>
+              <!-- Icon for menu close -->
+              <svg
+                id="menu-close-icon"
+                class="h-6 w-6 hidden"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Mobile menu, show/hide based on menu state. -->
+      <div id="mobile-menu" class="md:hidden hidden">
+        <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+          <a
+            href="/search"
+            class="text-gray-600 hover:bg-gray-50 hover:text-green-600 block px-3 py-2 rounded-md text-base font-medium"
+            >단어 검색</a
+          >
+          <a
+            href="/test"
+            class="text-gray-600 hover:bg-gray-50 hover:text-green-600 block px-3 py-2 rounded-md text-base font-medium"
+            >단어 테스트</a
+          >
+          <a
+            href="/game"
+            class="text-gray-600 hover:bg-gray-50 hover:text-green-600 block px-3 py-2 rounded-md text-base font-medium"
+            >미니게임</a
+          >
+          <a
+            href="/game/goldbell"
+            class="text-gray-600 hover:bg-gray-50 hover:text-yellow-600 block px-3 py-2 rounded-md text-base font-medium"
+            >골든벨</a
+          >
+          <a
+            href="/column"
+            class="text-gray-600 hover:bg-gray-50 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"
+            >칼럼</a
+          >
+          {% if is_admin_user %}
+          <a
+            href="/column/new"
+            class="text-gray-600 hover:bg-gray-50 hover:text-amber-600 block px-3 py-2 rounded-md text-base font-medium"
+            >칼럼등록</a
+          >
+          {% endif %}
+        </div>
+        <div class="pt-4 pb-3 border-t border-gray-200">
+          <div class="px-2">
+            {% if user %}
+            <div class="flex items-center gap-3 mb-3">
+              <img
+                src="{{ user.picture }}"
+                alt="프로필"
+                class="w-8 h-8 rounded-full border border-green-200 shadow-sm"
+              />
+
+              <div class="flex flex-col leading-tight">
+                <span class="text-sm font-bold text-green-800">
+                  {{ (profile.name if profile and profile.name else user.name)
+                  }}님
+                </span>
+                <span class="text-xs text-gray-500">{{ user.email }}</span>
+              </div>
+            </div>
+            <a
+              href="/mypage"
+              class="w-full text-left block bg-white border border-green-200 text-green-700 hover:bg-green-50 px-4 py-2 rounded-full font-medium text-xs transition-colors duration-200 mb-2"
+            >
+              마이페이지
+            </a>
+
+            <a
+              href="/logout"
+              class="w-full text-left block bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 px-4 py-2 rounded-full font-medium text-xs transition-colors duration-200"
+            >
+              로그아웃
+            </a>
+
+            {% else %}
             <a
               href="/login"
-              class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-full font-medium text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+              class="w-full block text-center bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-full font-medium text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
             >
               로그인
             </a>
@@ -129,5 +253,17 @@
         <p class="text-xs mt-1 text-green-300">Designed for Students</p>
       </div>
     </footer>
+    <script>
+      const mobileMenuButton = document.getElementById("mobile-menu-button");
+      const mobileMenu = document.getElementById("mobile-menu");
+      const menuOpenIcon = document.getElementById("menu-open-icon");
+      const menuCloseIcon = document.getElementById("menu-close-icon");
+
+      mobileMenuButton.addEventListener("click", () => {
+        mobileMenu.classList.toggle("hidden");
+        menuOpenIcon.classList.toggle("hidden");
+        menuCloseIcon.classList.toggle("hidden");
+      });
+    </script>
   </body>
 </html>
