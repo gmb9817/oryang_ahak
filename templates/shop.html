@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}굿즈 샵 - 오량어학사전{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+  <!-- 헤더 -->
+  <div class="text-center mb-12">
+    <div class="inline-block mb-4">
+      <span class="text-6xl">🎁</span>
+    </div>
+    <h1 class="text-4xl font-bold text-gray-900 mb-3">오량어학 굿즈 샵</h1>
+    <p class="text-gray-600 text-lg">포인트로 다양한 굿즈를 교환하세요!</p>
+    
+    {% if user %}
+    <div class="mt-6 inline-flex items-center gap-3 bg-purple-50 border border-purple-200 rounded-full px-6 py-3">
+      <span class="text-purple-700 font-semibold">내 포인트</span>
+      <span class="text-2xl font-bold text-purple-900">{{ "{:,}".format(profile.points or 0) }} P</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 준비중 안내 -->
+  <div class="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-3xl p-12 text-center shadow-lg">
+    <div class="mb-6">
+      <span class="text-7xl">🚧</span>
+    </div>
+    <h2 class="text-3xl font-bold text-gray-800 mb-4">굿즈 샵 준비중</h2>
+    <p class="text-gray-600 text-lg mb-6 leading-relaxed">
+      더 멋진 굿즈들을 준비하고 있습니다.<br>
+      곧 여러분을 만나뵐 수 있도록 열심히 준비하고 있으니<br>
+      조금만 기다려주세요! 😊
+    </p>
+    
+    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8">
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-purple-100 w-64">
+        <p class="text-sm text-gray-500 mb-1">예정 굿즈</p>
+        <p class="font-bold text-purple-700">스티커, 키링, 에코백 등</p>
+      </div>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-purple-100 w-64">
+        <p class="text-sm text-gray-500 mb-1">오픈 예정</p>
+        <p class="font-bold text-pink-700">2025년 상반기 중</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 굿즈 미리보기 (준비중) -->
+  <div class="mt-16">
+    <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center">준비중인 굿즈 미리보기</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- 굿즈 카드 1 -->
+      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-shadow opacity-60">
+        <div class="aspect-square bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center">
+          <span class="text-6xl">🎨</span>
+        </div>
+        <div class="p-5">
+          <h4 class="font-bold text-lg text-gray-800 mb-2">오량어학 스티커팩</h4>
+          <p class="text-gray-500 text-sm mb-3">귀여운 한글 캐릭터 스티커</p>
+          <div class="flex items-center justify-between">
+            <span class="text-purple-600 font-bold text-lg">??? P</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">준비중</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 굿즈 카드 2 -->
+      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-shadow opacity-60">
+        <div class="aspect-square bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center">
+          <span class="text-6xl">🔑</span>
+        </div>
+        <div class="p-5">
+          <h4 class="font-bold text-lg text-gray-800 mb-2">한글 키링</h4>
+          <p class="text-gray-500 text-sm mb-3">감성 한글 디자인 키링</p>
+          <div class="flex items-center justify-between">
+            <span class="text-purple-600 font-bold text-lg">??? P</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">준비중</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 굿즈 카드 3 -->
+      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-shadow opacity-60">
+        <div class="aspect-square bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center">
+          <span class="text-6xl">👜</span>
+        </div>
+        <div class="p-5">
+          <h4 class="font-bold text-lg text-gray-800 mb-2">오량어학 에코백</h4>
+          <p class="text-gray-500 text-sm mb-3">환경을 생각하는 에코백</p>
+          <div class="flex items-center justify-between">
+            <span class="text-purple-600 font-bold text-lg">??? P</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">준비중</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 하단 안내 -->
+  <div class="mt-12 text-center">
+    <p class="text-gray-500 text-sm">
+      💡 지금부터 열심히 테스트와 게임으로 포인트를 모아보세요!<br>
+      굿즈 샵이 오픈하면 바로 교환할 수 있습니다.
+    </p>
+  </div>
+</div>
+{% endblock %}

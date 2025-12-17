@@ -1,6 +1,11 @@
+import sys
+import os
+
+# 현재 디렉토리를 sys.path에 추가하여 모듈 import 문제 해결
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from flask import Flask, render_template, url_for, session, redirect, request
 from authlib.integrations.flask_client import OAuth
-import os
 import requests
 import urllib3
 import xml.etree.ElementTree as ET
@@ -13,12 +18,21 @@ import importlib.util
 import glob
 import re
 
+# Firebase Admin SDK (optional - 설치되어 있지 않으면 주석 처리)
+try:
+    import firebase_admin
+    from firebase_admin import credentials, db
+    FIREBASE_ENABLED = True
+except ImportError:
+    FIREBASE_ENABLED = False
+    print("[WARNING] Firebase Admin SDK가 설치되지 않았습니다. Firebase 연동이 비활성화됩니다.")
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Serve files from the assets directory as static resources (e.g., logo.png)
 app = Flask(__name__, static_folder='assets', static_url_path='/assets')
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production-2025')
 
 RANKING_FILE = 'ranking.json'
 USER_PROFILE_FILE = 'user_profiles.json'
@@ -26,6 +40,23 @@ RANKING_FILE_CONSONANT = 'ranking_consonant.json'
 CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
 
 dictionary_api_key = '7E98638BB1A1278BE9FB408A95D9DF34'
+
+# Firebase 초기화 (serviceAccountKey.json 파일이 있을 경우)
+if FIREBASE_ENABLED:
+    try:
+        cred_path = os.path.join(os.path.dirname(__file__), 'serviceAccountKey.json')
+        if os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred, {
+                'databaseURL': 'https://oryang-ahak-e2d0c-default-rtdb.asia-southeast1.firebasedatabase.app/'  # Realtime Database URL
+            })
+            print("[SUCCESS] Firebase가 성공적으로 초기화되었습니다.")
+        else:
+            FIREBASE_ENABLED = False
+            print("[WARNING] serviceAccountKey.json 파일을 찾을 수 없습니다. Firebase 연동이 비활성화됩니다.")
+    except Exception as e:
+        FIREBASE_ENABLED = False
+        print(f"[ERROR] Firebase 초기화 실패: {e}")
 
 # 골든벨 게임 생성 권한을 가진 이메일 목록
 ADMIN_EMAILS = [
@@ -64,6 +95,20 @@ def add_points(email, points_to_add):
     profiles[email] = profile
     
     save_profiles(profiles)
+    
+    # Firebase에도 동기화
+    if FIREBASE_ENABLED:
+        try:
+            sanitized_email = email.replace('.', '_')
+            ref = db.reference(f'users/{sanitized_email}')
+            ref.update({
+                'points': profile['points'],
+                'email': email,
+                'name': profile.get('name', ''),
+                'updated_at': datetime.now().isoformat()
+            })
+        except Exception as e:
+            print(f"[ERROR] Firebase 동기화 실패: {e}")
     
     # 세션에 포인트 정보가 있다면 업데이트
     if 'profile' in session and session['profile'] is not None:
@@ -442,6 +487,16 @@ def mypage():
         return redirect(url_for('signup'))
 
     return render_template('mypage.html', user=user, profile=profile)
+
+@app.route('/shop')
+def shop():
+    """굿즈 샵 페이지 (준비중)"""
+    user = session.get('user')
+    email = user.get('email') if user else None
+    profiles = load_profiles()
+    profile = normalize_profile(profiles.get(email, {}) if email else {})
+    
+    return render_template('shop.html', user=user, profile=profile)
 
 @app.route('/test')
 def test_menu():
@@ -1096,6 +1151,15 @@ def column_list():
 def column_detail(column_id):
     user = session.get('user')
     
+    # 사용자가 이미 이 칼럼을 풀었는지 확인
+    already_solved = False
+    if user:
+        email = user.get('email')
+        profiles = load_profiles()
+        profile = profiles.get(email, {})
+        solved_columns = profile.get('solved_columns', [])
+        already_solved = column_id in solved_columns
+    
     # 칼럼 로드
     columns_dir = os.path.join(os.path.dirname(__file__), 'columns')
     column_file = os.path.join(columns_dir, f'{column_id}.py')
@@ -1114,7 +1178,8 @@ def column_detail(column_id):
             'date': getattr(module, 'date', ''),
             'author': getattr(module, 'author', ''),
             'content': module.content,
-            'questions': module.questions
+            'questions': module.questions,
+            'already_solved': already_solved
         }
         
         return render_template('column_detail.html', user=user, column=column)
@@ -1169,17 +1234,36 @@ def column_submit():
                 'explanation': question.get('explanation', '')
             })
 
-        # 포인트 지급 (정답당 20점)
-        points_earned = correct_count * 20
-        if user and points_earned > 0:
-            add_points(user.get('email'), points_earned)
+        # 이미 푼 칼럼인지 확인
+        already_solved = False
+        if user:
+            email = user.get('email')
+            profiles = load_profiles()
+            profile = profiles.get(email, {})
+            solved_columns = profile.get('solved_columns', [])
+            already_solved = column_id in solved_columns
+        
+        # 포인트 지급 (정답당 20점, 단 처음 풀 때만)
+        points_earned = 0
+        if user and not already_solved:
+            points_earned = correct_count * 20
+            if points_earned > 0:
+                add_points(email, points_earned)
+                
+                # 풀이 기록 저장
+                if 'solved_columns' not in profile:
+                    profile['solved_columns'] = []
+                profile['solved_columns'].append(column_id)
+                profiles[email] = profile
+                save_profiles(profiles)
         
         return {
             'total': len(questions),
             'correct': correct_count,
             'wrong': wrong_count,
             'details': details,
-            'points_earned': points_earned
+            'points_earned': points_earned,
+            'already_solved': already_solved
         }
         
     except Exception as e:
@@ -1187,4 +1271,4 @@ def column_submit():
         return {'error': str(e)}, 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=True)

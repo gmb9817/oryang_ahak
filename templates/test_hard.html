@@ -103,6 +103,13 @@
                     window.location.href = "/test/result";
                 };
             }
+            
+            // 엔터키 이벤트 리스너 추가
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    document.getElementById('next-btn').click();
+                }
+            }, { once: true });
         })
         .catch(err => {
             console.error('Error:', err);
