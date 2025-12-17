@@ -1,0 +1,34 @@
+# Firebase 서비스 계정 키 (비밀 정보)
+serviceAccountKey.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Flask
+instance/
+.webassets-cache
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로컬 데이터 파일
+*.json
+!package.json
+!tsconfig.json
+
+# 개인 설정
+.env
+.env.local
