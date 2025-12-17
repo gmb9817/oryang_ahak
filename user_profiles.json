@@ -5,5 +5,15 @@
     "student_number": 2,
     "name": "김가빈",
     "points": 22
+  },
+  "25_lmj0701@dshs.kr": {
+    "grade": 1,
+    "class_number": 5,
+    "student_number": 21,
+    "name": "이민주",
+    "points": 0,
+    "solved_columns": [
+      "2025_12_17_훈민정음의_탄생_정명섭의_실록_읽기"
+    ]
   }
 }

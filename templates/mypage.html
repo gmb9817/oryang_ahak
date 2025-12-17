@@ -59,37 +59,6 @@
   </div>
 </div>
 
-<!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-  import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
-  // Firebase 설정
-  // ⚠️ Realtime Database를 활성화한 후 databaseURL을 입력하세요!
-  // Firebase Console → Realtime Database 생성 후 표시되는 URL 사용
-  const firebaseConfig = {
-    apiKey: "AIzaSyD5sW3yrebDYjNG3bArmFLw-TB4IYcgoOM",
-    authDomain: "oryang-ahak-e2d0c.firebaseapp.com",
-    databaseURL: "https://oryang-ahak-e2d0c-default-rtdb.asia-southeast1.firebasedatabase.app/",  // ← Realtime Database URL 입력
-    projectId: "oryang-ahak-e2d0c",
-    storageBucket: "oryang-ahak-e2d0c.firebasestorage.app",
-    messagingSenderId: "1038826321782",
-    appId: "1:1038826321782:web:80bc0befddb086c0d1ac57"
-  };
-
-  // Firebase 초기화
-  const app = initializeApp(firebaseConfig);
-  const database = getDatabase(app);
-
-  // 사용자 이메일 (이메일의 . 을 _ 로 변환)
-  const userEmail = "{{ user.email }}";
-  const sanitizedEmail = userEmail.replace(/\./g, '_');
-
-  // 실시간으로 포인트 감시
-  const pointsRef = ref(database, 'users/' + sanitizedEmail + '/points');
-  onValue(pointsRef, (snapshot) => {
-    const points = snapshot.val() || 0;
-    document.getElementById('points-display').textContent = points.toLocaleString() + ' P';
-  });
-</script>
+<!-- SQLite 기반 포인트 표시 (Firebase 제거) -->
+<!-- 포인트는 서버에서 조회하여 표시됩니다 -->
 {% endblock %}

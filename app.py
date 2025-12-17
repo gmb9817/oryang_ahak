@@ -1,5 +1,7 @@
 import sys
 import os
+import sqlite3
+from contextlib import contextmanager
 
 # 현재 디렉토리를 sys.path에 추가하여 모듈 import 문제 해결
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -44,6 +46,34 @@ CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', '
 
 dictionary_api_key = '7E98638BB1A1278BE9FB408A95D9DF34'
 
+# SQLite 데이터베이스 경로
+DB_FILE = 'points.db'
+
+@contextmanager
+def get_db_connection():
+    """데이터베이스 연결을 관리하는 컨텍스트 매니저"""
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+def init_db():
+    """SQLite 데이터베이스 초기화"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_points (
+                email TEXT PRIMARY KEY,
+                points INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.commit()
+        print("[SUCCESS] SQLite 데이터베이스가 초기화되었습니다.")
+
 # Firebase 초기화 (serviceAccountKey.json 파일이 있을 경우)
 if FIREBASE_ENABLED:
     try:
@@ -87,36 +117,60 @@ def save_profiles(profiles):
 
 
 def add_points(email, points_to_add):
-    """사용자에게 포인트를 추가"""
+    """사용자에게 포인트를 추가 (SQLite 기반)"""
     if not email or points_to_add == 0:
         return
 
-    profiles = load_profiles()
-    profile = normalize_profile(profiles.get(email, {}))
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 기존 포인트 조회
+            cursor.execute('SELECT points FROM user_points WHERE email = ?', (email,))
+            row = cursor.fetchone()
+            
+            if row:
+                # 업데이트
+                new_points = row['points'] + points_to_add
+                cursor.execute('''
+                    UPDATE user_points 
+                    SET points = ?, updated_at = CURRENT_TIMESTAMP 
+                    WHERE email = ?
+                ''', (new_points, email))
+            else:
+                # 새로 삽입
+                new_points = points_to_add
+                cursor.execute('''
+                    INSERT INTO user_points (email, points) 
+                    VALUES (?, ?)
+                ''', (email, new_points))
+            
+            conn.commit()
+            
+            # 세션에 포인트 정보가 있다면 업데이트
+            if 'profile' in session and session['profile'] is not None:
+                session['profile']['points'] = new_points
+                session.modified = True
+                
+            print(f"[SUCCESS] {email}에게 {points_to_add}P 지급 (총: {new_points}P)")
+            
+    except Exception as e:
+        print(f"[ERROR] 포인트 추가 실패: {e}")
+
+def get_points(email):
+    """사용자의 현재 포인트 조회 (SQLite 기반)"""
+    if not email:
+        return 0
     
-    profile['points'] = profile.get('points', 0) + points_to_add
-    profiles[email] = profile
-    
-    save_profiles(profiles)
-    
-    # Firebase에도 동기화
-    if FIREBASE_ENABLED:
-        try:
-            sanitized_email = email.replace('.', '_')
-            ref = db.reference(f'users/{sanitized_email}')
-            ref.update({
-                'points': profile['points'],
-                'email': email,
-                'name': profile.get('name', ''),
-                'updated_at': datetime.now().isoformat()
-            })
-        except Exception as e:
-            print(f"[ERROR] Firebase 동기화 실패: {e}")
-    
-    # 세션에 포인트 정보가 있다면 업데이트
-    if 'profile' in session and session['profile'] is not None:
-        session['profile']['points'] = profile['points']
-        session.modified = True
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT points FROM user_points WHERE email = ?', (email,))
+            row = cursor.fetchone()
+            return row['points'] if row else 0
+    except Exception as e:
+        print(f"[ERROR] 포인트 조회 실패: {e}")
+        return 0
 
 
 
@@ -559,6 +613,9 @@ def mypage():
 
     if not is_profile_complete(profile):
         return redirect(url_for('signup'))
+
+    # SQLite에서 포인트 조회
+    profile['points'] = get_points(email)
 
     return render_template('mypage.html', user=user, profile=profile)
 
@@ -1349,4 +1406,6 @@ def column_submit():
         return {'error': str(e)}, 500
 
 if __name__ == '__main__':
+    # SQLite 데이터베이스 초기화
+    init_db()
     app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=True)
