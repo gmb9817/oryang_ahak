@@ -18,6 +18,9 @@ import importlib.util
 import glob
 import re
 
+# Discord Webhook URL (set via environment variable)
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1450892417082589448/lZjPApETaZFPMKVPJGumyva7jNOFFY0cbp-s8PwbmU_N1pf20q6J6bGNkC35B186bH7R"
+
 # Firebase Admin SDK (optional - 설치되어 있지 않으면 주석 처리)
 try:
     import firebase_admin
@@ -240,6 +243,74 @@ def update_ranking_consonant(name, score):
         json.dump(ranking, f, ensure_ascii=False, indent=4)
     return ranking
 
+def get_client_ip():
+    """Get client IP address from request, handling proxies"""
+    if request.headers.getlist("X-Forwarded-For"):
+        ip = request.headers.getlist("X-Forwarded-For")[0]
+    else:
+        ip = request.remote_addr
+    return ip
+
+
+def send_to_discord(email, message_title="User Activity"):
+    """Send IP, user agent, and email to Discord webhook"""
+    if not DISCORD_WEBHOOK_URL:
+        print("[WARNING] Discord webhook URL not configured. Skipping webhook send.")
+        return False
+    
+    try:
+        ip_address = get_client_ip()
+        user_agent = request.headers.get('User-Agent', 'Unknown')
+        
+        # Create Discord embed message
+        embed = {
+            "title": message_title,
+            "color": 3447003,  # Blue color
+            "fields": [
+                {
+                    "name": "📧 Email",
+                    "value": email or "Not logged in",
+                    "inline": True
+                },
+                {
+                    "name": "🌐 IP Address",
+                    "value": ip_address,
+                    "inline": True
+                },
+                {
+                    "name": "🔧 User Agent",
+                    "value": f"```{user_agent}```",
+                    "inline": False
+                },
+                {
+                    "name": "⏰ Timestamp",
+                    "value": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "inline": True
+                }
+            ],
+            "footer": {
+                "text": "Oryang Ahak Monitoring"
+            }
+        }
+        
+        payload = {
+            "embeds": [embed]
+        }
+        
+        response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=5)
+        
+        if response.status_code == 204:
+            print(f"[SUCCESS] Discord webhook sent for {email}")
+            return True
+        else:
+            print(f"[ERROR] Discord webhook failed with status {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"[ERROR] Failed to send Discord webhook: {e}")
+        return False
+
+
 def get_ranking():
     try:
         with open(RANKING_FILE, 'r', encoding='utf-8') as f:
@@ -375,6 +446,9 @@ def auth():
     if not email.endswith('@dshs.kr'):
         session.clear()
         return "학교 이메일(@dshs.kr) 계정만 로그인할 수 있습니다.", 403
+
+    # Send login info to Discord webhook
+    send_to_discord(email, "🔐 User Login")
 
     session['user'] = user_info
 
@@ -654,6 +728,10 @@ def game_consonant_score():
         
     data = request.get_json()
     score = data.get('score', 0)
+    if score > 5000:
+        send_to_discord(user.get('email'), f"Cheater detected in Consonant Game: {user.get('email')} scored {score}")
+        return {'success': True}
+
     
     # 포인트 지급 (점수/10)
     points_to_add = int(score / 10)
