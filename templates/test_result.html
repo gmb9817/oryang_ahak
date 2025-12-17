@@ -19,6 +19,15 @@
         <div class="text-5xl font-black text-green-600 mb-2">
             {{ score }} <span class="text-2xl text-gray-400 font-medium">/ {{ total }}</span>
         </div>
+
+        {% if points_earned and points_earned > 0 %}
+        <div class="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-3 text-center my-6">
+            <p class="text-yellow-700 font-bold text-lg">
+                🪙 {{ points_earned }} 포인트를 획득했어요!
+            </p>
+        </div>
+        {% endif %}
+
         <p class="text-green-600 font-medium mb-10">
             {% if score == total %} 완벽합니다! 모든 단어를 마스터하셨네요!
             {% elif score >= total * 0.7 %} 훌륭한 실력이에요!

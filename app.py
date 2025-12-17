@@ -52,6 +52,26 @@ def save_profiles(profiles):
         json.dump(profiles, f, ensure_ascii=False, indent=2)
 
 
+def add_points(email, points_to_add):
+    """사용자에게 포인트를 추가"""
+    if not email or points_to_add == 0:
+        return
+
+    profiles = load_profiles()
+    profile = normalize_profile(profiles.get(email, {}))
+    
+    profile['points'] = profile.get('points', 0) + points_to_add
+    profiles[email] = profile
+    
+    save_profiles(profiles)
+    
+    # 세션에 포인트 정보가 있다면 업데이트
+    if 'profile' in session and session['profile'] is not None:
+        session['profile']['points'] = profile['points']
+        session.modified = True
+
+
+
 def normalize_profile(profile):
     """프로필 기본값(포인트 등)을 채워서 반환"""
     profile = profile or {}
@@ -505,8 +525,15 @@ def test_result():
     
     score = quiz['score']
     total = quiz['total']
+    points_earned = score * 10
     
-    return render_template('test_result.html', user=user, score=score, total=total)
+    if user and points_earned > 0:
+        add_points(user.get('email'), points_earned)
+    
+    # 세션에서 퀴즈 정보 삭제
+    session.pop('quiz', None)
+    
+    return render_template('test_result.html', user=user, score=score, total=total, points_earned=points_earned)
 
 @app.route('/game')
 def game_menu():
@@ -539,6 +566,11 @@ def game_acid_score():
     data = request.get_json()
     score = data.get('score', 0)
     
+    # 포인트 지급 (점수/10)
+    points_to_add = int(score / 10)
+    if points_to_add > 0:
+        add_points(user.get('email'), points_to_add)
+    
     new_ranking = update_ranking(user['name'], score)
     
     return {'ranking': new_ranking}
@@ -567,6 +599,11 @@ def game_consonant_score():
         
     data = request.get_json()
     score = data.get('score', 0)
+    
+    # 포인트 지급 (점수/10)
+    points_to_add = int(score / 10)
+    if points_to_add > 0:
+        add_points(user.get('email'), points_to_add)
     
     update_ranking_consonant(user['name'], score)
     return {'success': True}
@@ -1089,6 +1126,8 @@ def column_detail(column_id):
 @app.route('/column/submit', methods=['POST'])
 def column_submit():
     """칼럼 퀴즈 정답 체크"""
+    user = session.get('user')
+
     try:
         data = request.get_json()
         column_id = data.get('column_id')
@@ -1129,12 +1168,18 @@ def column_submit():
                 'user_answer': question['choices'][user_answer_idx] if 0 <= user_answer_idx < len(question['choices']) else '선택 안 함',
                 'explanation': question.get('explanation', '')
             })
+
+        # 포인트 지급 (정답당 20점)
+        points_earned = correct_count * 20
+        if user and points_earned > 0:
+            add_points(user.get('email'), points_earned)
         
         return {
             'total': len(questions),
             'correct': correct_count,
             'wrong': wrong_count,
-            'details': details
+            'details': details,
+            'points_earned': points_earned
         }
         
     except Exception as e:
