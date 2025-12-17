@@ -1,72 +1,133 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}오량어학사전{% endblock %}</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-    
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" href="../assets/Favicon.ico" />
     <style>
-        body { font-family: 'Noto Sans KR', sans-serif; }
+      body {
+        font-family: "Noto Sans KR", sans-serif;
+      }
     </style>
-</head>
-<body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
+  </head>
+  <body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
+    <nav
+      class="bg-white border-b border-green-100 shadow-sm fixed w-full z-10 top-0"
+    >
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <div class="flex items-center">
+            <a href="/" class="flex-shrink-0 flex items-center h-full py-2">
+              <img
+                src="/assets/logo.png"
+                alt="오량어학사전 로고"
+                class="h-full max-h-12 w-auto object-contain"
+              />
+            </a>
+          </div>
 
-    <nav class="bg-white border-b border-green-100 shadow-sm fixed w-full z-10 top-0">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                
-                <div class="flex items-center">
-                    <a href="/" class="flex-shrink-0 flex items-center h-full py-2">
-                        <img src="https://i.namu.wiki/i/v1Nds-7xuKkmGywSbr5qhgYQjeXxBvSIqiVJkaJ2aZ_MyqV9UZ6HCiMh8vdoYI_P41pA0c6YKbyfltmVNLArrFC5721EUjRXfnOcxEJtVG486Wvb6WHYEPBHUiJQjk3ogsbMpWnM-7lF8tJq_-tB9w.webp" alt="오량어학사전 로고" class="h-full max-h-12 w-auto object-contain">
-                    </a>
-                </div>
+          <div class="hidden md:flex items-center space-x-8">
+            <a
+              href="/search"
+              class="text-gray-600 hover:text-green-600 font-medium transition-colors duration-200"
+              >단어 검색</a
+            >
+            <a
+              href="/test"
+              class="text-gray-600 hover:text-green-600 font-medium transition-colors duration-200"
+              >단어 테스트</a
+            >
+            <a
+              href="/game"
+              class="text-gray-600 hover:text-green-600 font-medium transition-colors duration-200"
+              >미니게임</a
+            >
+            <a
+              href="/game/goldbell"
+              class="text-gray-600 hover:text-yellow-600 font-medium transition-colors duration-200"
+              >골든벨</a
+            >
+            <a
+              href="/column"
+              class="text-gray-600 hover:text-blue-600 font-medium transition-colors duration-200"
+              >칼럼</a
+            >
+            <!-- <a
+              href="/signup"
+              class="text-gray-600 hover:text-indigo-600 font-medium transition-colors duration-200"
+              >회원정보</a
+            > -->
+            {% if is_admin_user %}
+            <a
+              href="/column/new"
+              class="text-gray-600 hover:text-amber-600 font-medium transition-colors duration-200"
+              >칼럼등록</a
+            >
+            {% endif %}
+          </div>
 
-                <div class="hidden md:flex items-center space-x-8">
-                    <a href="/search" class="text-gray-600 hover:text-green-600 font-medium transition-colors duration-200">단어 검색</a>
-                    <a href="/test" class="text-gray-600 hover:text-green-600 font-medium transition-colors duration-200">단어 테스트</a>
-                    <a href="/game" class="text-gray-600 hover:text-green-600 font-medium transition-colors duration-200">미니게임</a>
-                    <a href="/game/goldbell" class="text-gray-600 hover:text-yellow-600 font-medium transition-colors duration-200">골든벨</a>
-                    <a href="/column" class="text-gray-600 hover:text-blue-600 font-medium transition-colors duration-200">칼럼</a>
-                </div>
+          <div class="flex items-center">
+            {% if user %}
+            <div class="flex items-center gap-3">
+              <img
+                src="{{ user.picture }}"
+                alt="프로필"
+                class="w-8 h-8 rounded-full border border-green-200 shadow-sm"
+              />
 
-                <div class="flex items-center">
-                    {% if user %}
-                        <div class="flex items-center gap-3">
-                            <img src="{{ user.picture }}" alt="프로필" class="w-8 h-8 rounded-full border border-green-200 shadow-sm">
-                            
-                            <span class="text-sm font-bold text-green-800 hidden sm:block">
-                                {{ user.name }}님
-                            </span>
-                            
-                            <a href="/logout" class="bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 px-4 py-2 rounded-full font-medium text-xs transition-colors duration-200 ml-1">
-                                로그아웃
-                            </a>
-                        </div>
-                    {% else %}
-                        <a href="/login" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-full font-medium text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
-                            로그인
-                        </a>
-                    {% endif %}
-                </div>
+              <div class="hidden sm:flex flex-col leading-tight">
+                <span class="text-sm font-bold text-green-800">
+                  {{ (profile.name if profile and profile.name else user.name)
+                  }}님
+                </span>
+                <span class="text-xs text-gray-500">{{ user.email }}</span>
+              </div>
 
+              <a
+                href="/mypage"
+                class="bg-white border border-green-200 text-green-700 hover:bg-green-50 px-4 py-2 rounded-full font-medium text-xs transition-colors duration-200"
+              >
+                마이페이지
+              </a>
+
+              <a
+                href="/logout"
+                class="bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 px-4 py-2 rounded-full font-medium text-xs transition-colors duration-200"
+              >
+                로그아웃
+              </a>
             </div>
+            {% else %}
+            <a
+              href="/login"
+              class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-full font-medium text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+            >
+              로그인
+            </a>
+            {% endif %}
+          </div>
         </div>
+      </div>
     </nav>
 
-    <main class="flex-grow pt-20 pb-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-        {% block content %}
-        {% endblock %}
+    <main
+      class="flex-grow pt-20 pb-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full"
+    >
+      {% block content %} {% endblock %}
     </main>
 
     <footer class="bg-green-800 text-green-100 py-6 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 text-center">
-            <p class="text-sm">&copy; 2025 오량어학사전. All rights reserved.</p>
-            <p class="text-xs mt-1 text-green-300">Designed for Students</p>
-        </div>
+      <div class="max-w-7xl mx-auto px-4 text-center">
+        <p class="text-sm">&copy; 2025 오량어학사전. All rights reserved.</p>
+        <p class="text-xs mt-1 text-green-300">Designed for Students</p>
+      </div>
     </footer>
-
-</body>
+  </body>
 </html>
