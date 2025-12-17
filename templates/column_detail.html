@@ -53,6 +53,7 @@
 
             <form id="quizForm" class="space-y-6">
                 {% for q in column.questions %}
+                {% set q_index = loop.index0 %}
                 <div class="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
                     <p class="font-bold text-gray-800 mb-4">{{ loop.index }}. {{ q.question }}</p>
                     
@@ -60,7 +61,7 @@
                         {% for choice in q.choices %}
                         <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-white cursor-pointer transition-colors border border-transparent hover:border-green-300">
                             <input type="radio" 
-                                   name="question_{{ loop.index0 }}" 
+                                   name="question_{{ q_index }}" 
                                    value="{{ loop.index0 }}"
                                    class="w-5 h-5 text-green-600 focus:ring-green-500"
                                    required>
@@ -158,6 +159,13 @@ function showResults(result) {
                     <p class="text-3xl font-bold text-red-600">${result.wrong}</p>
                 </div>
             </div>
+
+            ${ (result.points_earned && result.points_earned > 0) ?
+            `<div class="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-3 text-center mb-6">
+                <p class="text-yellow-700 font-bold text-lg">
+                    🪙 ${result.points_earned} 포인트를 획득했어요!
+                </p>
+            </div>` : '' }
             
             <div class="space-y-4">
     `;

@@ -15,11 +15,13 @@ import re
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-app = Flask(__name__)
+# Serve files from the assets directory as static resources (e.g., logo.png)
+app = Flask(__name__, static_folder='assets', static_url_path='/assets')
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.urandom(24)
 
 RANKING_FILE = 'ranking.json'
+USER_PROFILE_FILE = 'user_profiles.json'
 RANKING_FILE_CONSONANT = 'ranking_consonant.json'
 CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
 
@@ -27,11 +29,67 @@ dictionary_api_key = '7E98638BB1A1278BE9FB408A95D9DF34'
 
 # 골든벨 게임 생성 권한을 가진 이메일 목록
 ADMIN_EMAILS = [
-    '25_lmj0701@dshs.kr',  # 여기에 권한자 이메일 추가
+    '25_lmj0701@dshs.kr',
+    '25_kgb0601@dshs.kr'# 여기에 권한자 이메일 추가
 ]
 
 # 게임 세션 저장소 (메모리)
 game_sessions = {}
+
+
+def load_profiles():
+    """저장된 사용자 프로필 불러오기"""
+    try:
+        with open(USER_PROFILE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_profiles(profiles):
+    """사용자 프로필 저장"""
+    with open(USER_PROFILE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(profiles, f, ensure_ascii=False, indent=2)
+
+
+def add_points(email, points_to_add):
+    """사용자에게 포인트를 추가"""
+    if not email or points_to_add == 0:
+        return
+
+    profiles = load_profiles()
+    profile = normalize_profile(profiles.get(email, {}))
+    
+    profile['points'] = profile.get('points', 0) + points_to_add
+    profiles[email] = profile
+    
+    save_profiles(profiles)
+    
+    # 세션에 포인트 정보가 있다면 업데이트
+    if 'profile' in session and session['profile'] is not None:
+        session['profile']['points'] = profile['points']
+        session.modified = True
+
+
+
+def normalize_profile(profile):
+    """프로필 기본값(포인트 등)을 채워서 반환"""
+    profile = profile or {}
+    if 'points' not in profile:
+        profile['points'] = 0
+    return profile
+
+
+def is_profile_complete(profile):
+    """학년/반/번호/이름 모두 채워졌는지 확인"""
+    required_fields = ['grade', 'class_number', 'student_number', 'name']
+    return bool(profile) and all(str(profile.get(field, '')).strip() != '' for field in required_fields)
+
+
+def is_admin(user):
+    """관리자 여부 판별"""
+    return user and user.get('email') in ADMIN_EMAILS
+
 
 def generate_game_code():
     """6자리 랜덤 숫자 코드 생성"""
@@ -178,12 +236,25 @@ google = oauth.register(
     client_kwargs={'scope': 'openid email profile'}
 )
 
+
+@app.context_processor
+def inject_user_profile():
+    """모든 템플릿에 사용자/프로필 정보 전달"""
+    current_user = session.get('user')
+    return {
+        'user': current_user,
+        'profile': session.get('profile'),
+        'is_admin_user': is_admin(current_user)
+    }
+
+
 @app.route('/')
 def index():
     user = session.get('user')
     if user:
         print(f"[DEBUG] 현재 로그인된 이메일: {user.get('email')}")
     return render_template('index.html', user=user)
+
 
 @app.route('/search')
 def search():
@@ -253,13 +324,124 @@ def auth():
     token = google.authorize_access_token()
     resp = google.get('https://www.googleapis.com/oauth2/v3/userinfo')
     user_info = resp.json()
+
+    # 학교 도메인 검사 (@dshs.kr)
+    email = user_info.get('email', '')
+    if not email.endswith('@dshs.kr'):
+        session.clear()
+        return "학교 이메일(@dshs.kr) 계정만 로그인할 수 있습니다.", 403
+
     session['user'] = user_info
+
+    profiles = load_profiles()
+    profile = normalize_profile(profiles.get(email, {}) if email else {})
+
+    if profile and profile.get('name'):
+        session['user']['name'] = profile['name']
+
+    if profile:
+        session['profile'] = profile
+    else:
+        session.pop('profile', None)
+
+    if not is_profile_complete(profile):
+        return redirect(url_for('signup'))
+
     return redirect(url_for('index'))
 
 @app.route('/logout')
 def logout():
     session.pop('user', None)
+    session.pop('profile', None)
     return redirect(url_for('index'))
+
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """구글 로그인 후 학년/반/번호/이름을 등록"""
+    user = session.get('user')
+    if not user:
+        return redirect(url_for('login'))
+
+    email = user.get('email')
+    profiles = load_profiles()
+    stored_profile = normalize_profile(profiles.get(email, {}) if email else {})
+
+    # GET 요청 시 기본값으로 채울 데이터
+    profile_form = stored_profile.copy()
+    errors = []
+
+    if request.method == 'POST':
+        profile_form['grade'] = request.form.get('grade', '').strip()
+        profile_form['class_number'] = request.form.get('class_number', '').strip()
+        profile_form['student_number'] = request.form.get('student_number', '').strip()
+        profile_form['name'] = request.form.get('name', '').strip()
+
+        if not email:
+            errors.append('구글 계정 이메일을 찾을 수 없습니다. 다시 로그인해주세요.')
+
+        # 학년 검증 (1~6 자유롭게)
+        try:
+            grade_val = int(profile_form['grade'])
+            if grade_val < 1 or grade_val > 6:
+                errors.append('학년은 1~6 사이 숫자로 입력해주세요.')
+        except ValueError:
+            errors.append('학년은 숫자로 입력해주세요.')
+
+        # 반 검증 (1~10)
+        try:
+            class_val = int(profile_form['class_number'])
+            if class_val < 1 or class_val > 10:
+                errors.append('반은 1~10 사이 숫자로 입력해주세요.')
+        except ValueError:
+            errors.append('반은 숫자로 입력해주세요.')
+
+        # 번호 검증 (1~50)
+        try:
+            number_val = int(profile_form['student_number'])
+            if number_val < 1 or number_val > 50:
+                errors.append('번호는 1~50 사이 숫자로 입력해주세요.')
+        except ValueError:
+            errors.append('번호는 숫자로 입력해주세요.')
+
+        if not profile_form['name']:
+            errors.append('이름을 입력해주세요.')
+
+        if not errors:
+            new_profile = {
+                'grade': grade_val,
+                'class_number': class_val,
+                'student_number': number_val,
+                'name': profile_form['name'],
+                'points': stored_profile.get('points', 0)
+            }
+            profiles[email] = new_profile
+            save_profiles(profiles)
+
+            # 세션 최신화
+            session['profile'] = new_profile
+            session['user']['name'] = new_profile['name']
+
+            return redirect(url_for('index'))
+
+    return render_template('signup.html', user=user, profile=profile_form, errors=errors)
+
+
+@app.route('/mypage')
+def mypage():
+    """로그인 사용자의 프로필을 보는 전용 페이지"""
+    user = session.get('user')
+    if not user:
+        return redirect(url_for('login'))
+
+    email = user.get('email')
+    profiles = load_profiles()
+    profile = normalize_profile(profiles.get(email, {}) if email else {})
+
+    if not is_profile_complete(profile):
+        return redirect(url_for('signup'))
+
+    return render_template('mypage.html', user=user, profile=profile)
 
 @app.route('/test')
 def test_menu():
@@ -343,8 +525,15 @@ def test_result():
     
     score = quiz['score']
     total = quiz['total']
+    points_earned = score * 10
     
-    return render_template('test_result.html', user=user, score=score, total=total)
+    if user and points_earned > 0:
+        add_points(user.get('email'), points_earned)
+    
+    # 세션에서 퀴즈 정보 삭제
+    session.pop('quiz', None)
+    
+    return render_template('test_result.html', user=user, score=score, total=total, points_earned=points_earned)
 
 @app.route('/game')
 def game_menu():
@@ -377,6 +566,11 @@ def game_acid_score():
     data = request.get_json()
     score = data.get('score', 0)
     
+    # 포인트 지급 (점수/10)
+    points_to_add = int(score / 10)
+    if points_to_add > 0:
+        add_points(user.get('email'), points_to_add)
+    
     new_ranking = update_ranking(user['name'], score)
     
     return {'ranking': new_ranking}
@@ -405,6 +599,11 @@ def game_consonant_score():
         
     data = request.get_json()
     score = data.get('score', 0)
+    
+    # 포인트 지급 (점수/10)
+    points_to_add = int(score / 10)
+    if points_to_add > 0:
+        add_points(user.get('email'), points_to_add)
     
     update_ranking_consonant(user['name'], score)
     return {'success': True}
@@ -467,26 +666,30 @@ def save_quiz():
             counter += 1
         
         # 파일 내용 생성
+        def escape_text(value):
+            return (value or "").replace("\\", "\\\\").replace('"', '\\"')
+        
         file_content = f"""# -*- coding: utf-8 -*-
 \"\"\"
 {quiz_name}
 난이도: {difficulty}
 \"\"\"
 
-quiz_name = "{quiz_name}"
-quiz_description = "{quiz_description}"
-difficulty = "{difficulty}"
+quiz_name = "{escape_text(quiz_name)}"
+quiz_description = "{escape_text(quiz_description)}"
+difficulty = "{escape_text(difficulty)}"
 
 questions = [
 """
         
         for q in questions:
             file_content += f"""    {{
-        "question": "{q['question']}",
-        "answer": "{q['answer']}",
-        "wrong1": "{q['wrong1']}",
-        "wrong2": "{q['wrong2']}",
-        "wrong3": "{q['wrong3']}"
+        "question": "{escape_text(q.get('question'))}",
+        "explanation": "{escape_text(q.get('explanation', ''))}",
+        "answer": "{escape_text(q.get('answer'))}",
+        "wrong1": "{escape_text(q.get('wrong1'))}",
+        "wrong2": "{escape_text(q.get('wrong2'))}",
+        "wrong3": "{escape_text(q.get('wrong3'))}"
     }},
 """
         
@@ -530,8 +733,10 @@ def start_goldbell_game():
         if not hasattr(module, 'questions'):
             return {'error': '문제집 형식이 올바르지 않습니다.'}, 400
         
-        # 문제 순서 랜덤 셔플
-        questions = module.questions.copy()
+        # 문제 순서 랜덤 셔플 + 해설 기본값 보강
+        questions = [dict(q) for q in module.questions]
+        for q in questions:
+            q.setdefault('explanation', '')
         random.shuffle(questions)
         
         # 게임 코드 생성
@@ -768,7 +973,8 @@ def submit_answer(game_code):
             'success': True,
             'correct': correct,
             'score': score,
-            'correct_answer': question['answer']
+            'correct_answer': question['answer'],
+            'explanation': question.get('explanation', '')
         }
         
     except Exception as e:
@@ -789,6 +995,96 @@ def game_status(game_code):
         'total_questions': len(game['questions']),
         'player_count': len(game['players'])
     }
+
+
+@app.route('/column/new', methods=['GET', 'POST'])
+def column_create():
+    """관리자 칼럼 등록"""
+    user = session.get('user')
+    if not user:
+        return redirect(url_for('login'))
+    if not is_admin(user):
+        return "관리자만 접근할 수 있습니다.", 403
+
+    errors = []
+    if request.method == 'POST':
+        title = (request.form.get('title') or '').strip()
+        content = (request.form.get('content') or '').strip()
+        quiz_data_raw = request.form.get('quiz_data') or '[]'
+
+        try:
+            questions = json.loads(quiz_data_raw)
+        except json.JSONDecodeError:
+            questions = []
+            errors.append('퀴즈 데이터가 올바르지 않습니다.')
+
+        if not title:
+            errors.append('제목을 입력해주세요.')
+        if not content:
+            errors.append('본문을 입력해주세요.')
+        if not questions:
+            errors.append('퀴즈를 최소 1개 이상 등록해주세요.')
+
+        # 퀴즈 검증
+        validated_questions = []
+        for idx, q in enumerate(questions):
+            question_text = (q.get('question') or '').strip()
+            choices = q.get('choices') or []
+            answer = q.get('answer')
+
+            if not question_text:
+                errors.append(f'{idx + 1}번 문항 질문을 입력해주세요.')
+                continue
+            if not isinstance(choices, list) or len(choices) < 2:
+                errors.append(f'{idx + 1}번 문항 보기를 2개 이상 입력해주세요.')
+                continue
+            if not isinstance(answer, int) or not (0 <= answer < len(choices)):
+                errors.append(f'{idx + 1}번 문항 정답을 올바르게 선택해주세요.')
+                continue
+
+            validated_questions.append({
+                'question': question_text,
+                'choices': choices,
+                'answer': answer,
+                'explanation': q.get('explanation', '')
+            })
+
+        if not errors:
+            columns_dir = os.path.join(os.path.dirname(__file__), 'columns')
+            os.makedirs(columns_dir, exist_ok=True)
+
+            slug = re.sub(r'[^0-9a-zA-Z가-힣]+', '_', title).strip('_').lower()
+            if not slug:
+                slug = 'column'
+            base_id = datetime.now().strftime('%Y_%m_%d_') + slug
+            column_id = base_id
+            counter = 1
+            while os.path.exists(os.path.join(columns_dir, f'{column_id}.py')):
+                column_id = f"{base_id}_{counter}"
+                counter += 1
+
+            file_path = os.path.join(columns_dir, f'{column_id}.py')
+            safe_title = title.replace('"', '\\"')
+            safe_author = (user.get('name') or user.get('email') or '관리자').replace('"', '\\"')
+            safe_content = content.replace('"""', '\\"""')
+
+            file_body = f'''# -*- coding: utf-8 -*-
+column_id = "{column_id}"
+title = "{safe_title}"
+date = "{datetime.now().strftime('%Y-%m-%d')}"
+author = "{safe_author}"
+
+content = """{safe_content}"""
+
+questions = {json.dumps(validated_questions, ensure_ascii=False, indent=4)}
+'''
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(file_body)
+
+            return redirect(url_for('column_detail', column_id=column_id))
+
+    return render_template('column_new.html', user=user, errors=errors)
+
 
 @app.route('/column')
 def column_list():
@@ -830,6 +1126,8 @@ def column_detail(column_id):
 @app.route('/column/submit', methods=['POST'])
 def column_submit():
     """칼럼 퀴즈 정답 체크"""
+    user = session.get('user')
+
     try:
         data = request.get_json()
         column_id = data.get('column_id')
@@ -870,12 +1168,18 @@ def column_submit():
                 'user_answer': question['choices'][user_answer_idx] if 0 <= user_answer_idx < len(question['choices']) else '선택 안 함',
                 'explanation': question.get('explanation', '')
             })
+
+        # 포인트 지급 (정답당 20점)
+        points_earned = correct_count * 20
+        if user and points_earned > 0:
+            add_points(user.get('email'), points_earned)
         
         return {
             'total': len(questions),
             'correct': correct_count,
             'wrong': wrong_count,
-            'details': details
+            'details': details,
+            'points_earned': points_earned
         }
         
     except Exception as e:
@@ -883,4 +1187,4 @@ def column_submit():
         return {'error': str(e)}, 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
