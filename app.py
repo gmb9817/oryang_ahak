@@ -43,7 +43,7 @@ RANKING_FILE = 'ranking.json'
 USER_PROFILE_FILE = 'user_profiles.json'
 RANKING_FILE_CONSONANT = 'ranking_consonant.json'
 CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
-EMAIL_REGEX = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*$")
+EMAIL_REGEX = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*$")
 
 
 def sanitize_email_for_log(email):
@@ -111,24 +111,27 @@ def init_db():
             
             if file_profiles:
                 if existing_profiles == 0:
-                    for email, profile in file_profiles.items():
-                        cursor.execute('''
-                            INSERT INTO user_profiles (email, profile_json, created_at, updated_at)
-                            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                            ON CONFLICT(email) DO UPDATE SET
-                                profile_json = excluded.profile_json,
-                                updated_at = CURRENT_TIMESTAMP
-                        ''', (email, json.dumps(profile, ensure_ascii=False)))
-                    conn.commit()
+                    insert_query = '''
+                        INSERT INTO user_profiles (email, profile_json, created_at, updated_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT(email) DO UPDATE SET
+                            profile_json = excluded.profile_json,
+                            updated_at = CURRENT_TIMESTAMP
+                    '''
                 else:
-                    for email, profile in file_profiles.items():
-                        cursor.execute('''
-                            INSERT OR IGNORE INTO user_profiles (email, profile_json, created_at, updated_at)
-                            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        ''', (email, json.dumps(profile, ensure_ascii=False)))
-                    conn.commit()
+                    insert_query = '''
+                        INSERT OR IGNORE INTO user_profiles (email, profile_json, created_at, updated_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    '''
+                
+                for email, profile in file_profiles.items():
+                    cursor.execute(insert_query, (email, json.dumps(profile, ensure_ascii=False)))
+                conn.commit()
+                
+                if existing_profiles > 0:
                     print(f"[INFO] 기존 SQLite 프로필 데이터가 있어 {USER_PROFILE_FILE} 신규 항목만 병합했습니다.")
         except Exception as e:
+            conn.rollback()
             print(f"[WARNING] 사용자 프로필 마이그레이션 실패 ({USER_PROFILE_FILE} -> SQLite): {e}")
         print("[SUCCESS] SQLite 데이터베이스가 초기화되었습니다.")
 
