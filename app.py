@@ -102,7 +102,8 @@ if FIREBASE_ENABLED:
 # 골든벨 게임 생성 권한을 가진 이메일 목록
 ADMIN_EMAILS = [
     '25_lmj0701@dshs.kr',
-    '25_kgb0601@dshs.kr'# 여기에 권한자 이메일 추가
+    '25_kgb0601@dshs.kr',
+    '25_kmj0404@dshs.kr'
 ]
 
 # 게임 세션 저장소 (메모리)
@@ -112,7 +113,7 @@ game_sessions = {}
 def load_profiles():
     """저장된 사용자 프로필 불러오기"""
     try:
-        with open(USER_PROFILE_FILE, 'r', encoding='utf-8') as f:
+        with open(USER_PROFILE_FILE, 'r', encoding='euc-kr') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
@@ -120,7 +121,7 @@ def load_profiles():
 
 def save_profiles(profiles):
     """사용자 프로필 저장"""
-    with open(USER_PROFILE_FILE, 'w', encoding='utf-8') as f:
+    with open(USER_PROFILE_FILE, 'w', encoding='euc-kr') as f:
         json.dump(profiles, f, ensure_ascii=False, indent=2)
 
 
@@ -332,7 +333,7 @@ def get_chosung(word):
 
 def get_ranking_consonant():
     try:
-        with open(RANKING_FILE_CONSONANT, 'r', encoding='utf-8') as f:
+        with open(RANKING_FILE_CONSONANT, 'r', encoding='euc-kr') as f:
             return json.load(f)
     except:
         return []
@@ -348,7 +349,7 @@ def update_ranking_consonant(name, score):
     ranking.sort(key=lambda x: x['score'], reverse=True)
     ranking = ranking[:10]
     
-    with open(RANKING_FILE_CONSONANT, 'w', encoding='utf-8') as f:
+    with open(RANKING_FILE_CONSONANT, 'w', encoding='euc-kr') as f:
         json.dump(ranking, f, ensure_ascii=False, indent=4)
     return ranking
 
@@ -422,7 +423,7 @@ def send_to_discord(email, message_title="User Activity"):
 
 def get_ranking():
     try:
-        with open(RANKING_FILE, 'r', encoding='utf-8') as f:
+        with open(RANKING_FILE, 'r', encoding='euc-kr') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return []
@@ -438,7 +439,7 @@ def update_ranking(name, score):
     ranking.sort(key=lambda x: x['score'], reverse=True)
     ranking = ranking[:10]
     
-    with open(RANKING_FILE, 'w', encoding='utf-8') as f:
+    with open(RANKING_FILE, 'w', encoding='euc-kr') as f:
         json.dump(ranking, f, ensure_ascii=False, indent=4)
     return ranking
 
@@ -981,7 +982,7 @@ def save_quiz():
         def escape_text(value):
             return (value or "").replace("\\", "\\\\").replace('"', '\\"')
         
-        file_content = f"""# -*- coding: utf-8 -*-
+        file_content = f"""# -*- coding: euc-kr -*-
 \"\"\"
 {quiz_name}
 난이도: {difficulty}
@@ -1009,7 +1010,7 @@ questions = [
 """
         
         # 파일 저장
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, 'w', encoding='euc-kr') as f:
             f.write(file_content)
         
         return {'success': True, 'message': '문제집이 저장되었습니다.', 'file': os.path.basename(file_path)}
@@ -1380,7 +1381,7 @@ def column_create():
             safe_author = (user.get('name') or user.get('email') or '관리자').replace('"', '\\"')
             safe_content = content.replace('"""', '\\"""')
 
-            file_body = f'''# -*- coding: utf-8 -*-
+            file_body = f'''# -*- coding: euc-kr -*-
 column_id = "{column_id}"
 title = "{safe_title}"
 date = "{datetime.now().strftime('%Y-%m-%d')}"
@@ -1390,7 +1391,7 @@ content = """{safe_content}"""
 
 questions = {json.dumps(validated_questions, ensure_ascii=False, indent=4)}
 '''
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, 'w', encoding='euc-kr') as f:
                 f.write(file_body)
 
             return redirect(url_for('column_detail', column_id=column_id))
@@ -1442,7 +1443,7 @@ def column_detail(column_id):
     
     if not os.path.exists(column_file):
         return "칼럼을 찾을 수 없습니다.", 404
-    
+     
     try:
         spec = importlib.util.spec_from_file_location("column_module", column_file)
         module = importlib.util.module_from_spec(spec)
