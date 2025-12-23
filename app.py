@@ -95,22 +95,34 @@ def init_db():
             cursor.execute('SELECT COUNT(*) FROM user_profiles')
             existing_profiles = cursor.fetchone()[0]
             
-            if existing_profiles == 0 and os.path.exists(USER_PROFILE_FILE):
-                with open(USER_PROFILE_FILE, 'r', encoding='utf-8') as f:
-                    file_profiles = json.load(f)
-                
-                for email, profile in file_profiles.items():
-                    cursor.execute('''
-                        INSERT INTO user_profiles (email, profile_json, created_at, updated_at)
-                        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        ON CONFLICT(email) DO UPDATE SET
-                            profile_json = excluded.profile_json,
-                            updated_at = CURRENT_TIMESTAMP
-                    ''', (email, json.dumps(profile, ensure_ascii=False)))
-                
-                conn.commit()
-            elif existing_profiles > 0 and os.path.exists(USER_PROFILE_FILE):
-                print(f"[INFO] 기존 SQLite 프로필 데이터가 있어 {USER_PROFILE_FILE} 마이그레이션을 건너뜁니다.")
+            file_profiles = {}
+            if os.path.exists(USER_PROFILE_FILE):
+                try:
+                    with open(USER_PROFILE_FILE, 'r', encoding='utf-8') as f:
+                        file_profiles = json.load(f)
+                except json.JSONDecodeError as decode_err:
+                    print(f"[WARNING] {USER_PROFILE_FILE} JSON 파싱 실패: {decode_err}")
+            
+            if file_profiles:
+                if existing_profiles == 0:
+                    for email, profile in file_profiles.items():
+                        cursor.execute('''
+                            INSERT INTO user_profiles (email, profile_json, created_at, updated_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            ON CONFLICT(email) DO UPDATE SET
+                                profile_json = excluded.profile_json,
+                                updated_at = CURRENT_TIMESTAMP
+                        ''', (email, json.dumps(profile, ensure_ascii=False)))
+                    conn.commit()
+                else:
+                    for email, profile in file_profiles.items():
+                        cursor.execute('''
+                            INSERT OR IGNORE INTO user_profiles (email, profile_json, created_at, updated_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ''', (email, json.dumps(profile, ensure_ascii=False)))
+                    if file_profiles:
+                        conn.commit()
+                    print(f"[INFO] 기존 SQLite 프로필 데이터가 있어 {USER_PROFILE_FILE} 신규 항목만 병합했습니다.")
         except Exception as e:
             print(f"[WARNING] 사용자 프로필 마이그레이션 실패 ({USER_PROFILE_FILE} -> SQLite): {e}")
         print("[SUCCESS] SQLite 데이터베이스가 초기화되었습니다.")
@@ -151,10 +163,12 @@ def load_profiles():
             cursor.execute('SELECT email, profile_json FROM user_profiles')
             for row in cursor.fetchall():
                 profile_json = row['profile_json']
+                email = row['email']
+                safe_email = str(email).replace('\n', ' ').replace('\r', ' ')
                 try:
-                    profiles[row['email']] = json.loads(profile_json) if profile_json is not None else {}
+                    profiles[email] = json.loads(profile_json) if profile_json is not None else {}
                 except json.JSONDecodeError:
-                    print(f"[WARNING] 사용자 프로필 파싱 실패: {row['email']}")
+                    print(f"[WARNING] 사용자 프로필 파싱 실패: {safe_email}")
                     continue
     except Exception as e:
         print(f"[ERROR] 사용자 프로필 로드 실패: {e}")
@@ -170,8 +184,9 @@ def save_profiles(profiles):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             for email, profile in profiles.items():
+                safe_email = str(email).replace('\n', ' ').replace('\r', ' ')
                 if not email or not isinstance(email, str) or not EMAIL_REGEX.match(email):
-                    print(f"[WARNING] 잘못된 사용자 이메일로 프로필 저장을 건너뜀: {email}")
+                    print(f"[WARNING] 잘못된 사용자 이메일로 프로필 저장을 건너뜀: {safe_email}")
                     continue
                 cursor.execute('''
                     INSERT INTO user_profiles (email, profile_json, created_at, updated_at)
