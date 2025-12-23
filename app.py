@@ -43,6 +43,7 @@ RANKING_FILE = 'ranking.json'
 USER_PROFILE_FILE = 'user_profiles.json'
 RANKING_FILE_CONSONANT = 'ranking_consonant.json'
 CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
+EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 dictionary_api_key = '7E98638BB1A1278BE9FB408A95D9DF34'
 
@@ -108,6 +109,8 @@ def init_db():
                     ''', (email, json.dumps(profile, ensure_ascii=False)))
                 
                 conn.commit()
+            elif existing_profiles > 0 and os.path.exists(USER_PROFILE_FILE):
+                print(f"[INFO] 기존 SQLite 프로필 데이터가 있어 {USER_PROFILE_FILE} 마이그레이션을 건너뜁니다.")
         except Exception as e:
             print(f"[WARNING] 사용자 프로필 마이그레이션 실패 ({USER_PROFILE_FILE} -> SQLite): {e}")
         print("[SUCCESS] SQLite 데이터베이스가 초기화되었습니다.")
@@ -147,8 +150,9 @@ def load_profiles():
             cursor = conn.cursor()
             cursor.execute('SELECT email, profile_json FROM user_profiles')
             for row in cursor.fetchall():
+                profile_json = row['profile_json']
                 try:
-                    profiles[row['email']] = json.loads(row['profile_json']) if row['profile_json'] else {}
+                    profiles[row['email']] = json.loads(profile_json) if profile_json is not None else {}
                 except json.JSONDecodeError:
                     print(f"[WARNING] 사용자 프로필 파싱 실패: {row['email']}")
                     continue
@@ -166,7 +170,7 @@ def save_profiles(profiles):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             for email, profile in profiles.items():
-                if not email or not isinstance(email, str):
+                if not email or not isinstance(email, str) or not EMAIL_REGEX.match(email):
                     print(f"[WARNING] 잘못된 사용자 이메일로 프로필 저장을 건너뜀: {email}")
                     continue
                 cursor.execute('''
