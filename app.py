@@ -43,7 +43,7 @@ RANKING_FILE = 'ranking.json'
 USER_PROFILE_FILE = 'user_profiles.json'
 RANKING_FILE_CONSONANT = 'ranking_consonant.json'
 CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
-EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_REGEX = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*$")
 
 
 def sanitize_email_for_log(email):
@@ -97,6 +97,7 @@ def init_db():
         
         # 기존 JSON 데이터를 SQLite로 마이그레이션
         try:
+            cursor.execute('BEGIN IMMEDIATE')
             cursor.execute('SELECT COUNT(*) FROM user_profiles')
             existing_profiles = cursor.fetchone()[0]
             
@@ -170,7 +171,10 @@ def load_profiles():
                 email = str(row['email'])
                 safe_email = sanitize_email_for_log(email)
                 try:
-                    profiles[email] = json.loads(profile_json) if profile_json is not None else {}
+                    if profile_json is None or not str(profile_json).strip():
+                        profiles[email] = {}
+                        continue
+                    profiles[email] = json.loads(profile_json)
                 except json.JSONDecodeError:
                     print(f"[WARNING] 사용자 프로필 파싱 실패: {safe_email}")
                     continue
