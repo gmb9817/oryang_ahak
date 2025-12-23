@@ -72,6 +72,14 @@ def init_db():
             )
         ''')
         cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                email TEXT PRIMARY KEY,
+                profile_json TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS test_cooldowns (
                 email TEXT,
                 mode TEXT,
@@ -80,6 +88,28 @@ def init_db():
             )
         ''')
         conn.commit()
+        
+        # 기존 JSON 데이터를 SQLite로 마이그레이션
+        try:
+            cursor.execute('SELECT COUNT(*) FROM user_profiles')
+            existing_profiles = cursor.fetchone()[0]
+            
+            if existing_profiles == 0 and os.path.exists(USER_PROFILE_FILE):
+                with open(USER_PROFILE_FILE, 'r', encoding='utf-8') as f:
+                    file_profiles = json.load(f)
+                
+                for email, profile in file_profiles.items():
+                    cursor.execute('''
+                        INSERT INTO user_profiles (email, profile_json, created_at, updated_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT(email) DO UPDATE SET
+                            profile_json = excluded.profile_json,
+                            updated_at = CURRENT_TIMESTAMP
+                    ''', (email, json.dumps(profile, ensure_ascii=False)))
+                
+                conn.commit()
+        except Exception as e:
+            print(f"[WARNING] 사용자 프로필 마이그레이션 실패: {e}")
         print("[SUCCESS] SQLite 데이터베이스가 초기화되었습니다.")
 
 # Firebase 초기화 (serviceAccountKey.json 파일이 있을 경우)
@@ -110,18 +140,43 @@ game_sessions = {}
 
 
 def load_profiles():
-    """저장된 사용자 프로필 불러오기"""
+    """저장된 사용자 프로필 불러오기 (SQLite 기반)"""
+    profiles = {}
     try:
-        with open(USER_PROFILE_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT email, profile_json FROM user_profiles')
+            for row in cursor.fetchall():
+                try:
+                    profiles[row['email']] = json.loads(row['profile_json']) if row['profile_json'] else {}
+                except json.JSONDecodeError:
+                    continue
+    except Exception as e:
+        print(f"[ERROR] 사용자 프로필 로드 실패: {e}")
+    return profiles
 
 
 def save_profiles(profiles):
-    """사용자 프로필 저장"""
-    with open(USER_PROFILE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(profiles, f, ensure_ascii=False, indent=2)
+    """사용자 프로필 저장 (SQLite 기반)"""
+    if not isinstance(profiles, dict):
+        return
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            for email, profile in profiles.items():
+                if not email:
+                    continue
+                cursor.execute('''
+                    INSERT INTO user_profiles (email, profile_json, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(email) DO UPDATE SET
+                        profile_json = excluded.profile_json,
+                        updated_at = CURRENT_TIMESTAMP
+                ''', (email, json.dumps(profile, ensure_ascii=False)))
+            conn.commit()
+    except Exception as e:
+        print(f"[ERROR] 사용자 프로필 저장 실패: {e}")
 
 
 def add_points(email, points_to_add):
