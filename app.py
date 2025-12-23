@@ -109,7 +109,7 @@ def init_db():
                 
                 conn.commit()
         except Exception as e:
-            print(f"[WARNING] 사용자 프로필 마이그레이션 실패: {e}")
+            print(f"[WARNING] 사용자 프로필 마이그레이션 실패 ({USER_PROFILE_FILE} -> SQLite): {e}")
         print("[SUCCESS] SQLite 데이터베이스가 초기화되었습니다.")
 
 # Firebase 초기화 (serviceAccountKey.json 파일이 있을 경우)
@@ -150,6 +150,7 @@ def load_profiles():
                 try:
                     profiles[row['email']] = json.loads(row['profile_json']) if row['profile_json'] else {}
                 except json.JSONDecodeError:
+                    print(f"[WARNING] 사용자 프로필 파싱 실패: {row['email']}")
                     continue
     except Exception as e:
         print(f"[ERROR] 사용자 프로필 로드 실패: {e}")
@@ -166,6 +167,7 @@ def save_profiles(profiles):
             cursor = conn.cursor()
             for email, profile in profiles.items():
                 if not email or not isinstance(email, str):
+                    print(f"[WARNING] 잘못된 사용자 이메일로 프로필 저장을 건너뜀: {email}")
                     continue
                 cursor.execute('''
                     INSERT INTO user_profiles (email, profile_json, created_at, updated_at)
