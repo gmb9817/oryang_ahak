@@ -45,6 +45,11 @@ RANKING_FILE_CONSONANT = 'ranking_consonant.json'
 CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+
+def sanitize_email_for_log(email):
+    """로그 출력 시 이메일에 포함된 개행 등을 제거"""
+    return str(email).replace('\n', ' ').replace('\r', ' ')
+
 dictionary_api_key = '7E98638BB1A1278BE9FB408A95D9DF34'
 
 # SQLite 데이터베이스 경로
@@ -120,8 +125,7 @@ def init_db():
                             INSERT OR IGNORE INTO user_profiles (email, profile_json, created_at, updated_at)
                             VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ''', (email, json.dumps(profile, ensure_ascii=False)))
-                    if file_profiles:
-                        conn.commit()
+                    conn.commit()
                     print(f"[INFO] 기존 SQLite 프로필 데이터가 있어 {USER_PROFILE_FILE} 신규 항목만 병합했습니다.")
         except Exception as e:
             print(f"[WARNING] 사용자 프로필 마이그레이션 실패 ({USER_PROFILE_FILE} -> SQLite): {e}")
@@ -163,8 +167,8 @@ def load_profiles():
             cursor.execute('SELECT email, profile_json FROM user_profiles')
             for row in cursor.fetchall():
                 profile_json = row['profile_json']
-                email = row['email']
-                safe_email = str(email).replace('\n', ' ').replace('\r', ' ')
+                email = str(row['email'])
+                safe_email = sanitize_email_for_log(email)
                 try:
                     profiles[email] = json.loads(profile_json) if profile_json is not None else {}
                 except json.JSONDecodeError:
@@ -184,8 +188,9 @@ def save_profiles(profiles):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             for email, profile in profiles.items():
-                safe_email = str(email).replace('\n', ' ').replace('\r', ' ')
-                if not email or not isinstance(email, str) or not EMAIL_REGEX.match(email):
+                email_str = str(email)
+                safe_email = sanitize_email_for_log(email_str)
+                if not email_str or not EMAIL_REGEX.match(email_str):
                     print(f"[WARNING] 잘못된 사용자 이메일로 프로필 저장을 건너뜀: {safe_email}")
                     continue
                 cursor.execute('''
@@ -194,7 +199,7 @@ def save_profiles(profiles):
                     ON CONFLICT(email) DO UPDATE SET
                         profile_json = excluded.profile_json,
                         updated_at = CURRENT_TIMESTAMP
-                ''', (email, json.dumps(profile, ensure_ascii=False)))
+                ''', (email_str, json.dumps(profile, ensure_ascii=False)))
             conn.commit()
     except Exception as e:
         print(f"[ERROR] 사용자 프로필 저장 실패: {e}")
