@@ -165,11 +165,11 @@ def save_profiles(profiles):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             for email, profile in profiles.items():
-                if not email:
+                if not email or not isinstance(email, str):
                     continue
                 cursor.execute('''
-                    INSERT INTO user_profiles (email, profile_json, updated_at)
-                    VALUES (?, ?, CURRENT_TIMESTAMP)
+                    INSERT INTO user_profiles (email, profile_json, created_at, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT(email) DO UPDATE SET
                         profile_json = excluded.profile_json,
                         updated_at = CURRENT_TIMESTAMP
